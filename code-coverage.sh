@@ -1,6 +1,7 @@
-GRCOV_DIR=~/apps/grcov
-echo Directory containing the grcov executable: $GRCOV_DIR
+# GRCOV_DIR=~/apps/grcov
+# echo Directory containing the grcov executable: $GRCOV_DIR
 
+cargo install grcov
 cargo clean
 
 echo Run tests producing raw coverage data...
