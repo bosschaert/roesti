@@ -1,6 +1,7 @@
 # GRCOV_DIR=~/apps/grcov
 # echo Directory containing the grcov executable: $GRCOV_DIR
 
+rustup component add llvm-tools-preview
 cargo install grcov
 cargo clean
 
