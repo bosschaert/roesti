@@ -76,3 +76,22 @@ impl ServiceRegistry {
         println!("Known services: {:?}", self.services);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::ServiceRegistry;
+
+    #[test]
+    fn test_register_service() {
+        let mut sr = ServiceRegistry::new();
+
+        let svc = String::from("My Service");
+
+        assert_eq!(0, sr.get_svcs::<String>("mysvc").len());
+        sr.register_service("mysvc", Box::new(svc));
+
+        let svcs = sr.get_svcs::<String>("mysvc");
+        assert_eq!(1, svcs.len());
+        assert_eq!("My Service".to_string(), svcs.get(0).unwrap().to_string());
+    }
+}

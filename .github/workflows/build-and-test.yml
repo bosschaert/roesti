@@ -9,9 +9,8 @@ jobs:
       - name: Check out repository code
         uses: actions/checkout@v4
       - run: echo "💡 The ${{ github.repository }} repository has been cloned to the runner."
-      - run: echo "🖥️ The workflow is now ready to test your code on the runner."
-      - name: List files in the repository
+      - name: Use cargo to build and test
         run: |
           ls ${{ github.workspace }}
-          cargo test
+          code-coverage.sh
       - run: echo "🍏 This job's status is ${{ job.status }}."
