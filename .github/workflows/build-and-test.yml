@@ -12,5 +12,5 @@ jobs:
       - name: Use cargo to build and test
         run: |
           ls ${{ github.workspace }}
-          code-coverage.sh
+          ${{ github.workspace }}/code-coverage.sh
       - run: echo "🍏 This job's status is ${{ job.status }}."
