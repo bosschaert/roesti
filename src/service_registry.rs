@@ -111,10 +111,10 @@ mod tests {
 
         let svc = String::from("My Service");
 
-        assert_eq!(0, sr.get_svcs::<String>("mysvc").len());
+        assert_eq!(0, sr.get_svcs::<String>().len());
         sr.register_service("mysvc", Box::new(svc));
 
-        let svcs = sr.get_svcs::<String>("mysvc");
+        let svcs = sr.get_svcs::<String>();
         assert_eq!(1, svcs.len());
         assert_eq!("My Service".to_string(), svcs.get(0).unwrap().to_string());
     }
