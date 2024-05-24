@@ -14,7 +14,7 @@ impl ServiceRegistry {
         }
     }
 
-    pub fn get_service(&self, name: &str) -> Option<&dyn Any> {
+    pub fn get_service_by_name(&self, name: &str) -> Option<&dyn Any> {
         let sl = self.get_services_by_name(name);
 
         for s in sl {
@@ -37,8 +37,31 @@ impl ServiceRegistry {
         res
     }
 
+    pub fn get_svc<T: 'static>(&self) -> Option<&T> {
+        for (_, s) in &self.services {
+            if s.is::<T>() {
+                return s.downcast_ref();
+            }
+        }
+        None
+    }
+
+    pub fn get_svcs<T: 'static>(&self) -> Vec<&T> {
+        let mut res = vec![];
+
+        for (_, s) in &self.services {
+            if let Some(dc) = s.downcast_ref() {
+                res.push(dc);
+            }
+        }
+
+        res
+    }
+
+
+    /*
     pub fn get_svc<T: 'static>(&self, name: &str) -> Option<&T> {
-        let svc = self.get_service(name);
+        let svc = self.get_service_by_name(name);
         match svc {
             Some(s) => {
                 return s.downcast_ref();
@@ -60,6 +83,7 @@ impl ServiceRegistry {
 
         res
     }
+     */
 
     pub fn register_service(&mut self, name: &str, svc: Box<dyn Any>) {
         let mut props: BTreeMap<String, String> = BTreeMap::new();

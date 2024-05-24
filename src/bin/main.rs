@@ -1,5 +1,5 @@
 use std::any::Any;
-use roesti::{service_registry::ServiceRegistry, tidal_service::TidalService};
+use roesti::{service_registry::ServiceRegistry, sunlight_service::SunlightService, tidal_service::TidalService};
 
 fn main() {
     let mut sr = ServiceRegistry::new();
@@ -15,7 +15,12 @@ fn main() {
     sr.register_service("TidalService", Box::new(ts2));
 
 
-    let tsx = sr.get_service("TidalService");
+    let sls = SunlightService{
+        location: "C".to_string()
+    };
+    sr.register_service("SunlightService", Box::new(sls));
+
+    let tsx = sr.get_service_by_name("TidalService");
     match tsx {
         Some(s) => use_service(s),
         _ => ()
@@ -26,15 +31,20 @@ fn main() {
         use_service(s);
     }
 
-    let tsy = sr.get_svc::<TidalService>("TidalService");
+    let tsy = sr.get_svc::<TidalService>();
     match tsy {
         Some(s) => call_tidal(s),
         _ => ()
     }
 
-    let svcs = sr.get_svcs::<TidalService>("TidalService");
+    println!("Calling first service found");
+    if let Some(tsz) = sr.get_svc::<TidalService>() {
+        println!("loc: {}", tsz.location());
+    }
+
+    let svcs = sr.get_svcs::<TidalService>();
     for s in svcs {
-        call_tidal(s);
+        println!("List loc: {}", s.location());
     }
 }
 
