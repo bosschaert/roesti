@@ -1,7 +1,28 @@
 use std::any::Any;
 use roesti::{service_registry::ServiceRegistry, sunlight_service::SunlightService, tidal_service::TidalService, location::Location};
+use roesti::dp;
+
+use hello_macro::HelloMacro;
+use hello_macro_derive::HelloMacro;
+
+#[derive(HelloMacro)]
+struct Pancakes;
 
 fn main() {
+    Pancakes::hello_macro();
+
+    let x = 12;
+    let y = 42;
+    dp!(x, y);
+
+    mainx();
+}
+
+fn mainx() {
+    if 1 == 1 {
+        return; // Ignore the rest for now
+    }
+
     let mut sr = ServiceRegistry::new();
 
     let ts = TidalService{
@@ -55,8 +76,8 @@ fn main() {
     let all_svcs = sr.get_all_svcs();
     for s in all_svcs {
         println!("svc: {:?} - typeid {:?}", s, s.type_id());
-        
-        let r = s.as_ref();
+
+        // let r = s.as_ref();
         // let x = r.downcast_ref::<dyn Location>();
         if s.is::<Box<dyn Location>>() {
             println!("location!");
