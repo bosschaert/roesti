@@ -58,6 +58,15 @@ impl ServiceRegistry {
         res
     }
 
+    pub fn get_all_svcs(&self) -> Vec<&Box<dyn Any>> {
+        let mut res = vec![];
+
+        for (_, s) in &self.services {
+            res.push(s);
+        }
+        res
+    }
+
 
     /*
     pub fn get_svc<T: 'static>(&self, name: &str) -> Option<&T> {

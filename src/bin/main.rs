@@ -1,5 +1,5 @@
 use std::any::Any;
-use roesti::{service_registry::ServiceRegistry, sunlight_service::SunlightService, tidal_service::TidalService};
+use roesti::{service_registry::ServiceRegistry, sunlight_service::SunlightService, tidal_service::TidalService, location::Location};
 
 fn main() {
     let mut sr = ServiceRegistry::new();
@@ -45,6 +45,22 @@ fn main() {
     let svcs = sr.get_svcs::<TidalService>();
     for s in svcs {
         println!("List loc: {}", s.location());
+    }
+
+    // let svcs = sr.get_service_by_name("Location");
+    // for s in svcs {
+    //     println!("List loc: {}", s.location());
+    // }
+
+    let all_svcs = sr.get_all_svcs();
+    for s in all_svcs {
+        println!("svc: {:?} - typeid {:?}", s, s.type_id());
+        
+        let r = s.as_ref();
+        // let x = r.downcast_ref::<dyn Location>();
+        if s.is::<Box<dyn Location>>() {
+            println!("location!");
+        }
     }
 }
 
