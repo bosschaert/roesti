@@ -1,5 +1,5 @@
-use proc_macro::{TokenStream};
-use quote::{quote, quote_spanned};
+use proc_macro::TokenStream;
+use quote::{quote, quote_spanned, ToTokens};
 use syn::{self, DataStruct, LitStr};
 use syn::{Data, DataEnum, DataUnion, DeriveInput, Error, Fields, Result, token};
 use proc_macro2::Span;
@@ -61,12 +61,62 @@ fn impl_my_trait (ast: DeriveInput)
         },
     };
 
+    // println!("%%% {:?}", quote!(fields));
+
     for f in fields.named.iter() {
         println!("Field: {:?}", f.ident);
         f.attrs.iter().for_each(|a| {
             println!("Attr: {:?} - {}", a.path().get_ident(),
             a.path().get_ident().unwrap());
         });
+        // println!("Type: {:?}", f.ty.to_token_stream());
+        match &f.ty {
+            | syn::Type::Array(ref_type) => {
+                println!("Array type: {:?}", ref_type.to_token_stream());
+            },
+            | syn::Type::BareFn(ref_type) => {
+                println!("Barefn type: {:?}", ref_type.to_token_stream());
+            },
+            | syn::Type::Group(ref_type) => {
+                println!("Group: {:?}", ref_type.to_token_stream());
+            },
+            | syn::Type::ImplTrait(ref_type) => {
+                println!("Impl trait: {:?}", ref_type.to_token_stream());
+            },
+            | syn::Type::Infer(ref_type) => {
+                println!("Infer type: {:?}", ref_type.to_token_stream());
+            },
+            | syn::Type::Macro(ref_type) => {
+                println!("Macro type: {:?}", ref_type.to_token_stream());
+            },
+            | syn::Type::Never(ref_type) => {
+                println!("Never type: {:?}", ref_type.to_token_stream());
+            },
+            | syn::Type::Paren(ref_type) => {
+                println!("Paren type: {:?}", ref_type.to_token_stream());
+            },
+            | syn::Type::Path(ref_type) => {
+                println!("Path type: {:?}", ref_type.to_token_stream());
+            },
+            | syn::Type::Reference(ref_type) => {
+                println!("Ref type: {:?}", ref_type.to_token_stream());
+            },
+            | syn::Type::Slice(ref_type) => {
+                println!("Slice type: {:?}", ref_type.to_token_stream());
+            },
+            | syn::Type::TraitObject(ref_type) => {
+                println!("Trait object type: {:?}", ref_type.to_token_stream());
+            },
+            | syn::Type::Tuple(ref_type) => {
+                println!("Tuple type: {:?}", ref_type.to_token_stream());
+            },
+            | syn::Type::Verbatim(ref_type) => {
+                println!("Verbatim type: {:?}", ref_type.to_token_stream());
+            },
+            | _ => {
+                println!("Other type: {:?}", f.ty.to_token_stream());
+            },
+        }
     }
 
     let data_expanded_members = fields.named.into_iter().map(|field| {
