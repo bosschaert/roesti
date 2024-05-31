@@ -10,9 +10,17 @@ use roesti::dp;
 // struct Pancakes;
 
 fn main() {
-    // Pancakes::hello_macro();
+    let mut svcs = vec![];
+    let ts = TidalService{
+        location: "A".to_string()
+    };
+    svcs.push(ts);
 
-    let c1 = Consumer1::new();
+    // --- using ts
+    let tsref = svcs.get(0).unwrap();
+
+    let mut c1 = Consumer1::new();
+    c1.set_tidal_service(tsref);
     println!("c1: {}", c1);
     c1.foo();
     c1.blah();
