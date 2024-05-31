@@ -1,15 +1,21 @@
 use std::any::Any;
 use roesti::{service_registry::ServiceRegistry, sunlight_service::SunlightService, tidal_service::TidalService, location::Location};
+use roesti::consumer1::Consumer1;
 use roesti::dp;
 
-use hello_macro::HelloMacro;
-use hello_macro_derive::HelloMacro;
+// use hello_macro::HelloMacro;
+// use hello_macro_derive::HelloMacro;
 
-#[derive(HelloMacro)]
-struct Pancakes;
+// #[derive(HelloMacro)]
+// struct Pancakes;
 
 fn main() {
-    Pancakes::hello_macro();
+    // Pancakes::hello_macro();
+
+    let c1 = Consumer1::new();
+    println!("c1: {}", c1);
+    c1.foo();
+    c1.blah();
 
     let x = 12;
     let y = 42;
