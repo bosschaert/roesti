@@ -3,12 +3,6 @@ use roesti::{service_registry::ServiceRegistry, sunlight_service::SunlightServic
 use roesti::consumer1::Consumer1;
 use roesti::dp;
 
-// use hello_macro::HelloMacro;
-// use hello_macro_derive::HelloMacro;
-
-// #[derive(HelloMacro)]
-// struct Pancakes;
-
 fn main() {
     let mut svcs = vec![];
     let ts = TidalService{
@@ -16,15 +10,11 @@ fn main() {
     };
     svcs.push(ts);
 
-    // --- using ts
     let tsref = svcs.get(0).unwrap();
 
     let mut c1 = Consumer1::new();
-    c1.set_tidal_service(tsref);
+    c1.set_TidalService(tsref);
     println!("c1: {}", c1);
-    c1.foo();
-    c1.blah();
-    c1.set_t(tsref);
 
     let x = 12;
     let y = 42;

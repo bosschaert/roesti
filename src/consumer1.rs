@@ -17,10 +17,6 @@ impl Consumer1<'_> {
 }
 
 impl<'a> Consumer1<'a> {
-  pub fn foo(&self) {
-    println!("foo");
-  }
-
   pub fn set_tidal_service(&mut self, ts: &'a TidalService) {
     self.tidal = Some(ts);
   }
