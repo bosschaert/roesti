@@ -1,6 +1,9 @@
+use std::collections::HashMap;
+
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
-use syn::{self, DataStruct, GenericArgument, PathArguments, Data, DataEnum, DataUnion, DeriveInput, Error, Fields, Result, token, Type};
+use syn::{self, DataStruct, GenericArgument, PathArguments, Data, DataEnum, DataUnion,
+    DeriveInput, Error, Fields, Result, token, Type, Ident};
 use proc_macro2::Span;
 
 #[proc_macro_derive(DynamicServices, attributes(inject))]
@@ -14,34 +17,32 @@ pub fn dynamic_services_derive(input: TokenStream) -> TokenStream {
 }
 
 fn impl_dynamic_services(ast: syn::DeriveInput) -> TokenStream {
-    let types = match find_injected_types(ast.clone()) {
+    let types = match find_injected_fields(ast.clone()) {
         Ok(t) => t,
         Err(err) => return TokenStream::from(err.to_compile_error())
     };
     println!("Generate for types: {:?}", types);
 
     let name = ast.ident;
-    let ot = types.get(0);
-    if ot.is_none() {
-        return quote! {}.into();
-    }
+    let mut gen = quote!{};
 
-    let t = ot.unwrap();
-    let ti = format_ident!("{}", t);
-    let set_ts = format_ident!("set_{}", t);
-    let gen = quote! {
-        impl<'a> #name<'a> {
-            pub fn #set_ts(&mut self, xsvc: &'a #ti) {
-                self.tidal = Some(xsvc);
+    for (i, s) in &types {
+        let ti = format_ident!("{}", s);
+        let set_ts = format_ident!("set_{}", s);
+        let new_code = quote! {
+            impl<'_ds> #name<'_ds> {
+                pub fn #set_ts(&mut self, svc: &'_ds #ti) {
+                    self.#i = Some(svc);
+                }
             }
-        }
-    };
+        };
+        gen.extend(new_code);
+    }
     gen.into()
 }
 
-
-fn find_injected_types(ast: DeriveInput)
-  -> Result<Vec<String>> {
+fn find_injected_fields(ast: DeriveInput)
+  -> Result<HashMap<Ident, String>> {
     let fields = match ast.data {
         | Data::Enum(DataEnum { enum_token: token::Enum { span }, ..})
         | Data::Union(DataUnion { union_token: token::Union { span }, ..})
@@ -58,16 +59,16 @@ fn find_injected_types(ast: DeriveInput)
         },
     };
 
-    let mut names = vec![];
+    let mut injected = HashMap::new();
     for f in fields.named.iter() {
         if let syn::Type::Path(ref_type) = &f.ty {
             if let Some(n) = get_type_name(ref_type) {
-                names.push(n);
+                injected.insert(f.ident.clone().unwrap(), n);
             }
         }
     }
 
-    Ok(names)
+    Ok(injected)
 }
 
 fn get_type_name(ref_type: &syn::TypePath) -> Option<String> {
