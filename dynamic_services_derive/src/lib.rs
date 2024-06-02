@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
-use quote::{quote, quote_spanned, ToTokens};
-use syn::{self, DataStruct, LitStr};
-use syn::{Data, DataEnum, DataUnion, DeriveInput, Error, Fields, Result, token};
+use quote::{format_ident, quote, quote_spanned, ToTokens};
+use syn::{self, DataStruct, GenericArgument, LitStr, PathArguments};
+use syn::{Data, DataEnum, DataUnion, DeriveInput, Error, Fields, Result, token, Type, TypePath};
 use proc_macro2::Span;
 use proc_macro2::TokenStream as TokenStream2;
 
@@ -16,35 +16,37 @@ pub fn dynamic_services_derive(input: TokenStream) -> TokenStream {
 }
 
 fn impl_dynamic_services(ast: syn::DeriveInput) -> TokenStream {
-    println!("Given ast: {:?}", quote!(#ast));
-    println!("Name {} attrs {}", ast.ident, ast.attrs.len());
-
-    let _ = TokenStream::from(match impl_my_trait(ast.clone()) {
-        | Ok(it) => it,
-        | Err(err) => err.to_compile_error(),
-    });
+    let types = match find_injected_types(ast.clone()) {
+        Ok(t) => t,
+        Err(err) => return TokenStream::from(err.to_compile_error())
+    };
+    println!("Generate for types: {:?}", types);
 
     let name = ast.ident;
+    let ot = types.get(0);
+    if ot.is_none() {
+        return quote! {}.into();
+    }
+
+    let t = ot.unwrap();
+    let ti = format_ident!("{}", t);
     let gen = quote! {
-        impl #name<'_> {
+        impl<'a> #name<'a> {
             pub fn blah(&self) {
                 println!("blah");
             }
+
+            pub fn set_t(&self, xsvc: &'a #ti) {
+                println!("Setting {}", #t);
+            }
         }
-        // impl HelloMacro for #name {
-        //     fn hello_macro() {
-        //         println!("Hello, Macro! My name is {}!", stringify!(#name));
-        //     }
-        // }
     };
     gen.into()
 }
 
 
-fn impl_my_trait (ast: DeriveInput)
-  -> Result<TokenStream2>
-{ Ok ({
-    let name = ast.ident;
+fn find_injected_types(ast: DeriveInput)
+  -> Result<Vec<String>> {
     let fields = match ast.data {
         | Data::Enum(DataEnum { enum_token: token::Enum { span }, ..})
         | Data::Union(DataUnion { union_token: token::Union { span }, ..})
@@ -61,8 +63,72 @@ fn impl_my_trait (ast: DeriveInput)
         },
     };
 
-    // println!("%%% {:?}", quote!(fields));
+    let mut names = vec![];
+    for f in fields.named.iter() {
+        if let syn::Type::Path(ref_type) = &f.ty {
+            if let Some(n) = get_type_name(ref_type) {
+                names.push(n);
+            }
+        }
+    }
 
+    Ok(names)
+}
+
+fn get_type_name(ref_type: &syn::TypePath) -> Option<String> {
+    for s in ref_type.path.segments.iter() {
+        if s.ident.to_string() != "Option" {
+            return None;
+        }
+
+        return match &s.arguments {
+            PathArguments::AngleBracketed(aba) => get_option_args(aba),
+            _ => None
+        };
+    }
+    None
+}
+
+fn get_option_args(aba: &syn::AngleBracketedGenericArguments) -> Option<String> {
+    for a in aba.args.iter() {
+        println!("a: {:?}", a.to_token_stream());
+        if let GenericArgument::Type(t) = a {
+            return get_type(t);
+        }
+    }
+    None
+}
+
+fn get_type(t: &syn::Type) -> Option<String> {
+    if let Type::Reference(r) = t {
+        return get_reference(r);
+    }
+    None
+}
+
+fn get_reference(r: &syn::TypeReference) -> Option<String> {
+    return if let Type::Path(p) = &*r.elem {
+        get_from_typepath(p)
+    } else {
+        None
+    }
+}
+
+fn get_from_typepath(tp: &syn::TypePath) -> Option<String> {
+    return get_from_pathsegment(&(tp.path).segments);
+}
+
+fn get_from_pathsegment(segs: &syn::punctuated::Punctuated<syn::PathSegment, token::PathSep>) -> Option<String> {
+    return if let Some(ps) = segs.first() {
+        println!("*** Found: {}", ps.ident);
+        Some(ps.ident.to_string())
+    } else {
+        None
+    }
+}
+
+
+    /*
     for f in fields.named.iter() {
         println!("Field: {:?}", f.ident);
         f.attrs.iter().for_each(|a| {
@@ -117,8 +183,9 @@ fn impl_my_trait (ast: DeriveInput)
                 println!("Other type: {:?}", f.ty.to_token_stream());
             },
         }
-    }
+    } */
 
+    /*
     let data_expanded_members = fields.named.into_iter().map(|field| {
         let field_name = field.ident.unwrap();
         let span = field_name.span();
@@ -140,7 +207,8 @@ fn impl_my_trait (ast: DeriveInput)
             }
         }
     }
-})}
+    */
+
 /*
 #[proc_macro_derive(DynamicServices)]
 pub fn dynamic_services_derive(input: TokenStream) -> TokenStream {

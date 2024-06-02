@@ -24,6 +24,7 @@ fn main() {
     println!("c1: {}", c1);
     c1.foo();
     c1.blah();
+    c1.set_t(tsref);
 
     let x = 12;
     let y = 42;
