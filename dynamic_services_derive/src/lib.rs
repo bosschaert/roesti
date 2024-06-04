@@ -35,17 +35,37 @@ fn impl_dynamic_services(ast: syn::DeriveInput) -> TokenStream {
 
     for (i, s) in &types {
         let ti = format_ident!("{}", s);
+        // let ref_ti = format_ident!("&{}", s);
         let set_ts = format_ident!("set_{}", s);
+        let registry = format_ident!("SERVICES_{}", s);
         let new_code = quote! {
             impl<'_ds> #name<'_ds> {
                 pub fn #set_ts(&mut self, svc: &'_ds #ti) {
                     self.#i = Some(svc);
                 }
+
+                pub fn new(svc: &'_ds #ti) -> Self {
+                    let mut ds = #name {
+                        #i: Some(svc),
+                        ..Default::default()
+                    };
+
+                    ds
+                }
             }
 
+            pub static #registry: std::sync::Mutex<Vec<#ti>> = std::sync::Mutex::new(Vec::new());
+
+            // Add the register_service() method to the ServiceRegistry
             impl crate::service_registry::ServiceRegistry {
                 pub fn register_service(&mut self, svc: #ti) {
                     println!("Registering service: {:?}", svc);
+                    let mut vec = #registry.lock().unwrap();
+                    vec.push(svc);
+
+                    let myref = vec.last().unwrap();
+                    let cons = #name::new(myref);
+                    println!("Created consumer {:?} for {:?}", cons, myref);
                 }
             }
         };

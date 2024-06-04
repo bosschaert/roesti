@@ -2,7 +2,7 @@ use crate::tidal_service::TidalService;
 use dynamic_services_derive::DynamicServices;
 use dynamic_services_derive::{activator, dynamic_services};
 
-#[derive(DynamicServices)]
+#[derive(DynamicServices, Debug)]
 pub struct Consumer2<'a> {
     #[inject]
     tidal_ref_obj: &'a TidalService

@@ -3,7 +3,7 @@ use std::fmt::Display;
 
 use dynamic_services_derive::DynamicServices;
 
-#[derive(DynamicServices)]
+#[derive(DynamicServices, Debug, Default)]
 pub struct Consumer1<'a> {
   blahh: u32,
   #[inject]
@@ -11,9 +11,13 @@ pub struct Consumer1<'a> {
 }
 
 impl Consumer1<'_> {
-  pub fn new() -> Self {
-    Consumer1 { tidal: None, blahh: 12 }
+  pub fn default() -> Self {
+    Consumer1 { blahh: 12, tidal: None }
   }
+
+  // pub fn new() -> Self {
+  //   Consumer1 { tidal: None, blahh: 12 }
+  // }
 }
 
 impl<'foobar> Consumer1<'foobar> {
