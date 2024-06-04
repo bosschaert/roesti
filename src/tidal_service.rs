@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub struct TidalService {
     pub location: String
 }

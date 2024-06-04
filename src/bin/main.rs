@@ -1,10 +1,16 @@
 use std::any::Any;
 use std::time::Duration;
 use std::thread;
-use roesti::{service_registry::ServiceRegistry, sunlight_service::SunlightService, tidal_service::TidalService, location::Location};
+use roesti::{test_service_registry::TestServiceRegistry, sunlight_service::SunlightService, tidal_service::TidalService, location::Location};
 use roesti::consumer1::Consumer1;
+use roesti::service_registry::ServiceRegistry;
 
 fn main() {
+    let mut sr = ServiceRegistry::default();
+    sr.register_service(TidalService{
+        location: "A".to_string()
+    });
+
     let mut svcs = vec![];
     let ts = TidalService{
         location: "A".to_string()
@@ -34,7 +40,7 @@ fn mainx() {
         return; // Ignore the rest for now
     }
 
-    let mut sr = ServiceRegistry::new();
+    let mut sr = TestServiceRegistry::new();
 
     let ts = TidalService{
         location: "A".to_string()

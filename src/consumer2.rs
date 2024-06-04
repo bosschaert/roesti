@@ -13,7 +13,7 @@ impl Consumer2<'_> {
     // Called after the constructor has been called.
     #[activator]
     pub fn activate(&self) {
-        println!("Activated: ");
+        println!("Activated: {:?}", self.tidal_ref_obj);
     }
 }
 // #[derive(DynamicServices)]

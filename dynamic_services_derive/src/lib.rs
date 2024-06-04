@@ -12,6 +12,13 @@ pub fn dynamic_services_derive(input: TokenStream) -> TokenStream {
     // that we can manipulate
     let ast = syn::parse(input).unwrap();
 
+    println!("mfdir {:?}", env!("CARGO_MANIFEST_DIR"));
+    println!("mfdir rt {:?}", std::env::var("CARGO_MANIFEST_DIR"));
+
+    let data = "Some data!";
+    let filen = format!("{}/target/{}", std::env::var("CARGO_MANIFEST_DIR").unwrap(), "test.tmp");
+    std::fs::write(filen, data).expect("Unable to write file");
+
     // Build the trait implementation
     impl_dynamic_services(ast)
 }
@@ -33,6 +40,12 @@ fn impl_dynamic_services(ast: syn::DeriveInput) -> TokenStream {
             impl<'_ds> #name<'_ds> {
                 pub fn #set_ts(&mut self, svc: &'_ds #ti) {
                     self.#i = Some(svc);
+                }
+            }
+
+            impl crate::service_registry::ServiceRegistry {
+                pub fn register_service(&mut self, svc: #ti) {
+                    println!("Registering service: {:?}", svc);
                 }
             }
         };
@@ -131,6 +144,13 @@ pub fn activator(attr: TokenStream, item: TokenStream) -> TokenStream {
 
 #[proc_macro_attribute]
 pub fn dynamic_services(attr: TokenStream, item: TokenStream) -> TokenStream {
+    // generate new() constructor with all the required types
+    // add the activator() callback too
+
+    // Read from _dynsvc_Consumer2.json
+    // required fields
+    // new(reqfield1, reqfield2, ...)
+
     println!("xyz attr: \"{}\"", attr.to_string());
     println!("xyz item: \"{}\"", item.to_string());
     item
