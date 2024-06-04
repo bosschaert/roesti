@@ -10,7 +10,6 @@ fn main() {
     sr.register_service(TidalService{
         location: "A".to_string()
     });
-    // println!("??? {:?}", sr.new_field);
 
     let mut svcs = vec![];
     let ts = TidalService{
