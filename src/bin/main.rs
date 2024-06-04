@@ -1,7 +1,8 @@
 use std::any::Any;
+use std::time::Duration;
+use std::thread;
 use roesti::{service_registry::ServiceRegistry, sunlight_service::SunlightService, tidal_service::TidalService, location::Location};
 use roesti::consumer1::Consumer1;
-use roesti::dp;
 
 fn main() {
     let mut svcs = vec![];
@@ -16,9 +17,14 @@ fn main() {
     c1.set_TidalService(tsref);
     println!("c1: {}", c1);
 
+    // Consumer2::new();
+    /*
     let x = 12;
     let y = 42;
     dp!(x, y);
+     */
+
+    thread::sleep(Duration::MAX);
 
     mainx();
 }

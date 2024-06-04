@@ -6,7 +6,7 @@ use syn::{self, DataStruct, GenericArgument, PathArguments, Data, DataEnum, Data
     DeriveInput, Error, Fields, Result, token, Type, Ident};
 use proc_macro2::Span;
 
-#[proc_macro_derive(DynamicServices, attributes(inject))]
+#[proc_macro_derive(DynamicServices, attributes(inject, constructor))]
 pub fn dynamic_services_derive(input: TokenStream) -> TokenStream {
     // Construct a representation of Rust code as a syntax tree
     // that we can manipulate
@@ -120,4 +120,18 @@ fn get_from_pathsegment(segs: &syn::punctuated::Punctuated<syn::PathSegment, tok
     } else {
         None
     }
+}
+
+#[proc_macro_attribute]
+pub fn activator(attr: TokenStream, item: TokenStream) -> TokenStream {
+    println!("activator attr: \"{}\"", attr.to_string());
+    println!("activator item: \"{}\"", item.to_string());
+    item
+}
+
+#[proc_macro_attribute]
+pub fn dynamic_services(attr: TokenStream, item: TokenStream) -> TokenStream {
+    println!("xyz attr: \"{}\"", attr.to_string());
+    println!("xyz item: \"{}\"", item.to_string());
+    item
 }
