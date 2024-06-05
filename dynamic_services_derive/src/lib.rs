@@ -175,3 +175,11 @@ pub fn dynamic_services(attr: TokenStream, item: TokenStream) -> TokenStream {
     println!("xyz item: \"{}\"", item.to_string());
     item
 }
+
+
+#[proc_macro_attribute]
+pub fn blah(attr: TokenStream, item: TokenStream) -> TokenStream {
+    println!("blah attr: \"{}\"", attr.to_string());
+    println!("blah item: \"{}\"", item.to_string());
+    item
+}
