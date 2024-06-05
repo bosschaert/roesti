@@ -1,18 +1,18 @@
 use std::any::Any;
 use std::time::Duration;
 use std::thread;
-use dynamic_services_derive::blah;
+use dynamic_services_derive::dynamic_services;
 use roesti::{test_service_registry::TestServiceRegistry, sunlight_service::SunlightService, tidal_service::TidalService, location::Location};
 use roesti::consumer1::Consumer1;
 use roesti::service_registry::ServiceRegistry;
 
 // Note that this is the last annotation to get processed, so it could process all the annotations previously from a file
-#[blah]
+#[dynamic_services]
 fn main() {
     let mut sr = ServiceRegistry::default();
-    sr.register_service(TidalService{
-        location: "A".to_string()
-    });
+    // sr.register_service(TidalService{
+    //     location: "A".to_string()
+    // });
 
     let mut svcs = vec![];
     let ts = TidalService{
@@ -23,7 +23,7 @@ fn main() {
     let tsref = svcs.get(0).unwrap();
 
     let mut c1 = Consumer1::default();
-    c1.set_TidalService(tsref);
+    // c1.set_TidalService(tsref);
     println!("c1: {}", c1);
 
     // Consumer2::new();
