@@ -38,10 +38,6 @@ pub fn dynamic_services_derive(input: TokenStream) -> TokenStream {
     // println!("mfdir {:?}", env!("CARGO_MANIFEST_DIR"));
     // println!("mfdir rt {:?}", std::env::var("CARGO_MANIFEST_DIR"));
 
-    let data = "Some data!";
-    let filen = format!("{}/target/{}", std::env::var("CARGO_MANIFEST_DIR").unwrap(), "test.tmp");
-    std::fs::write(filen, data).expect("Unable to write file");
-
     // Build the trait implementation
     impl_dynamic_services(ast)
 }
@@ -136,6 +132,11 @@ fn find_injected_fields(ast: DeriveInput)
 
     let mut actions = Vec::new();
     for f in fields.named.iter() {
+        if !find_attribute(f, "inject") {
+            continue;
+        }
+        println!("To inject {:?}", f.ident.as_ref().unwrap());
+
         if let syn::Type::Path(ref_type) = &f.ty {
             let id = f.ident.as_ref().unwrap();
             if let Some(a) = get_type_name(id, ref_type) {
@@ -147,9 +148,22 @@ fn find_injected_fields(ast: DeriveInput)
     Ok((ast.ident.to_string(), actions))
 }
 
+fn find_attribute(f: &syn::Field, name: &str) -> bool {
+    for a in &f.attrs {
+        if let Some(name) = a.path().get_ident() {
+            if name == "inject" {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 fn get_type_name(ident: &syn::Ident, ref_type: &syn::TypePath) -> Option<Action> {
     for s in ref_type.path.segments.iter() {
+        println!("*** Try this: {:?}", s);
         if s.ident.to_string() != "Option" {
+            println!("*** Not an Option: {:?}", s);
             return None;
         }
 
