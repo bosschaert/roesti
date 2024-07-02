@@ -1,6 +1,7 @@
 use crate::tidal_service::TidalService;
 use std::fmt::Display;
 
+use dynamic_services_derive::dynamic_services;
 use dynamic_services_derive::DynamicServices;
 
 #[derive(DynamicServices, Debug, Default)]
@@ -10,6 +11,7 @@ pub struct Consumer1<'a> {
   tidal: Option<&'a TidalService>
 }
 
+#[dynamic_services]
 impl Consumer1<'_> {
   pub fn default() -> Self {
     Consumer1 { blahh: 12, tidal: None }
@@ -20,11 +22,11 @@ impl Consumer1<'_> {
   // }
 }
 
-impl<'foobar> Consumer1<'foobar> {
-  pub fn set_tidal_service(&mut self, ts: &'foobar TidalService) {
-    self.tidal = Some(ts);
-  }
-}
+// impl<'foobar> Consumer1<'foobar> {
+//   pub fn set_tidal_service(&mut self, ts: &'foobar TidalService) {
+//     self.tidal = Some(ts);
+//   }
+// }
 
 impl Display for Consumer1<'_> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

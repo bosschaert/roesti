@@ -7,7 +7,7 @@ use roesti::consumer1::Consumer1;
 use roesti::service_registry::ServiceRegistry;
 
 // Note that this is the last annotation to get processed, so it could process all the annotations previously from a file
-#[dynamic_services]
+// #[dynamic_services]
 fn main() {
     let mut sr = ServiceRegistry::default();
     // sr.register_service(TidalService{
@@ -23,7 +23,7 @@ fn main() {
     let tsref = svcs.get(0).unwrap();
 
     let mut c1 = Consumer1::default();
-    // c1.set_TidalService(tsref);
+    c1.set_TidalService(tsref);
     println!("c1: {}", c1);
 
     // Consumer2::new();
