@@ -1,18 +1,108 @@
+use once_cell::sync::Lazy;
 use std::any::Any;
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use std::thread;
-use dynamic_services_derive::dynamic_services;
 use roesti::{test_service_registry::TestServiceRegistry, sunlight_service::SunlightService, tidal_service::TidalService, location::Location};
 use roesti::consumer1::Consumer1;
+use roesti::consumer2::Consumer2;
 use roesti::service_registry::ServiceRegistry;
 
-// Note that this is the last annotation to get processed, so it could process all the annotations previously from a file
-// #[dynamic_services]
+use dynamic_services_derive::dynamic_services_main;
+
+// static CONSUMERS_INITIALIZED: Lazy<Mutex<bool>> = Lazy::new(||Mutex::new(false));
+static CONSUMERS_INITIALIZED: AtomicBool = AtomicBool::new(false);
+// static SERVICES: Lazy<Mutex<Vec<Box<dyn Any + Send + Sync>>>> = Lazy::new(||Mutex::new(Vec::new()));
+// static TIDAL_SERVICES: Lazy<Mutex<Vec<TidalService>>> = Lazy::new(||Mutex::new(Vec::new()));
+static TIDAL_CONSUMER1: Lazy<Mutex<Vec<fn() -> Consumer1<'static>>>> = Lazy::new(||Mutex::new(Vec::new()));
+static TIDAL_CONSUMER2: Lazy<Mutex<Vec<fn() -> Consumer2<'static>>>> = Lazy::new(||Mutex::new(Vec::new()));
+
+macro_rules! register_service {
+    ($svc:expr) => {
+        register_consumers();
+        register_service($svc);
+    };
+}
+
+#[dynamic_services_main]
 fn main() {
-    let mut sr = ServiceRegistry::default();
-    // sr.register_service(TidalService{
-    //     location: "A".to_string()
-    // });
+    let ts = TidalService{
+        location: "A".to_string()
+    };
+    register_service!(Box::new(ts));
+
+    thread::sleep(Duration::MAX);
+
+    mainx(); // never called
+    mainy(); // never called
+}
+
+// fn register_tidal_service(ts: TidalService) {
+//     println!("Registering TidalService: {:?}", ts);
+//     TIDAL_SERVICES.lock().unwrap().push(ts);
+
+//     inject_tidal_consumers();
+// }
+
+/*
+fn register_service(svc: Box<dyn Any + Send + Sync>) {
+    println!("Registering service: {:?}", svc);
+    SERVICES.lock().unwrap().push(svc);
+
+    inject_consumers();
+}
+*/
+
+fn register_consumers() {
+    let initialized = CONSUMERS_INITIALIZED.swap(true, Ordering::SeqCst);
+    if initialized {
+        return;
+    }
+
+    register_tidal_consumer1(|| Consumer1::default());
+    register_tidal_consumer2(|| Consumer2::new());
+}
+
+fn register_tidal_consumer1(ctor: fn() -> Consumer1<'static>) {
+    TIDAL_CONSUMER1.lock().unwrap().push(ctor);
+}
+
+fn register_tidal_consumer2(ctor: fn() -> Consumer2<'static>) {
+    TIDAL_CONSUMER2.lock().unwrap().push(ctor);
+}
+
+fn inject_consumers() {
+    for svc in SERVICES.lock().unwrap().iter() {
+        inject_consumer1(&svc);
+        inject_consumer2(&svc);
+    }
+    // inject_consumer1(ts);
+    // inject_consumer2(ts);
+}
+
+fn inject_consumer1(svc: &Box<dyn Any + Send + Sync>) {
+    if let Some(ts) = svc.downcast_ref::<TidalService>() {
+        for ctor in TIDAL_CONSUMER1.lock().unwrap().iter() {
+            let mut c = ctor();
+            c.set_TidalService(ts);
+            println!("c: {}", c);
+        }
+    }
+}
+
+fn inject_consumer2(svc: &Box<dyn Any + Send + Sync>) {
+    if let Some(ts) = svc.downcast_ref::<TidalService>() {
+        for ctor in TIDAL_CONSUMER2.lock().unwrap().iter() {
+            let mut c = ctor();
+            c.set_TidalService(ts);
+            println!("c: {}", c);
+        }
+    }
+}
+
+fn mainy() {
+    let mut sr = ServiceRegistry::new();
 
     let mut svcs = vec![];
     let ts = TidalService{
@@ -23,19 +113,13 @@ fn main() {
     let tsref = svcs.get(0).unwrap();
 
     let mut c1 = Consumer1::default();
+    // SERVICE_REGISTRY.register_consumer("Consumer1");
     c1.set_TidalService(tsref);
     println!("c1: {}", c1);
 
-    // Consumer2::new();
-    /*
-    let x = 12;
-    let y = 42;
-    dp!(x, y);
-     */
-
     thread::sleep(Duration::MAX);
 
-    mainx();
+    mainx(); // never called
 }
 
 fn mainx() {
@@ -44,6 +128,9 @@ fn mainx() {
     }
 
     let mut sr = TestServiceRegistry::new();
+
+    // sr.register_consumer("Consumer1", cons_fn);
+    Consumer1::register_as_consumer();
 
     let ts = TidalService{
         location: "A".to_string()

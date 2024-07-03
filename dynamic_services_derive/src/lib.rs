@@ -37,9 +37,6 @@ pub fn dynamic_services_derive(input: TokenStream) -> TokenStream {
     // that we can manipulate
     let ast = syn::parse(input).unwrap();
 
-    // println!("mfdir {:?}", env!("CARGO_MANIFEST_DIR"));
-    // println!("mfdir rt {:?}", std::env::var("CARGO_MANIFEST_DIR"));
-
     // Build the trait implementation
     impl_dynamic_services(ast)
 }
@@ -233,93 +230,28 @@ pub fn activator(attr: TokenStream, item: TokenStream) -> TokenStream {
 
 #[proc_macro_attribute]
 pub fn dynamic_services(attr: TokenStream, item: TokenStream) -> TokenStream {
-    // generate new() constructor with all the required types
-    // add the activator() callback too
-
-    // Read from _dynsvc_Consumer2.json
-    // required fields
-    // new(reqfield1, reqfield2, ...)
-
-    println!("$$xyz attr: \"{}\"", attr.to_string());
-    println!("$$xyz item: \"{}\"", item.to_string());
     let toks: Result<syn::ItemImpl> = syn::parse(item.clone().into());
     println!("parsed {:?}", toks);
     let tokens = toks.unwrap();
     let ty = tokens.self_ty;
     let x = if let Type::Path(tp) = ty.as_ref() {
         tp.path.segments.first().unwrap()
-
-        // println!("tp: {:?}", tp);
-        // let segs = &tp.path.segments;
-        // for s in segs {
-        //     println!("seg: {:?}", s);
-        // }
     } else {
         panic!("Not a path");
     };
-    // println!("ty: {:?}", ty);
 
     println!("*** ident {}", x.ident);
     let type_name = x.ident.to_string();
-    // let type_name = "Foo";
 
-    // let mut generated = quote! {};
     let mut generated: proc_macro2::TokenStream = item.into();
 
-    // list files in target directory starting with _ and ending with .tmp
     let file = format!("{}/target/_{}.tmp", std::env::var("CARGO_MANIFEST_DIR").unwrap(), type_name);
     if Path::new(&file).exists() {
         println!("Generating from {}", file);
         generate_class(&file, &type_name, &mut generated);
     }
-    /*
-    println!("*** Looking for files in {}", dir);
-    let paths = fs::read_dir(dir).unwrap();
-    for path in paths {
-        // println!("*** Found file {:?}", path);
-        if let Ok(de) = path {
-            // let p = de.path();
-            // let filenm = p.to_str().unwrap();
-            let filenm = de.file_name().into_string().unwrap();
-            println!("*** Found file name {}", filenm);
-            if filenm.starts_with("_") && filenm.ends_with(".tmp") {
-                generate_class(de.path().to_str().unwrap(), &filenm, &mut generated);
-            }
-        }
-    }
-     */
-    // let mut new_item = item.clone();
-    // item.
-    // item.extend(generated.into());
-    // generated.into()
-    // let g = quote! {
-    //     impl Consumer1 {
-    //         pub fn dummy() {
-    //             println!("Dummy");
-    //         }
-    //     }
-    // };
-    // let h: proc_macro2::TokenStream = g.into();
-    // g.into()
-    // item.extend(g.into())
-    // new_item.extend(g.into());
-    // <proc_macro::TokenStream as Extend<_>>::extend::<_>(&mut new_item, g.into());
-    // proc_macro::TokenStream::extend(&mut new_item, h.into());
-    // new_item.extend(h.into());
-
-    // new_item2.extend(g);
-
-    // let x = quote! {
-    //     impl<'_ds> Consumer1<'_ds> {
-    //         pub fn set_TidalService(&mut self, svc: &'_ds TidalService) {
-    //             self.tidal = Some(svc);
-    //         }
-    //     }
-    // };
-    // generated.extend(x);
 
     generated.into()
-    // quote! {}.into()
 }
 
 fn generate_class(file_path: &str, type_name: &str, generated: &mut proc_macro2::TokenStream) {
@@ -347,7 +279,7 @@ fn generate_action(type_name: &str, action: &serde_json::Value) -> proc_macro2::
             let new_code = quote! {
                 impl<'_ds> #tn<'_ds> {
                     pub fn #set_ts(&mut self, svc: &'_ds #itn) {
-                        println!("Setting {} to {:?}", #field, svc);
+                        println!("[{}] Setting {} to {:?}", #type_name, #field, svc);
                         self.#injected = Some(svc);
                     }
                 }
@@ -361,8 +293,24 @@ fn generate_action(type_name: &str, action: &serde_json::Value) -> proc_macro2::
 }
 
 #[proc_macro_attribute]
-pub fn blah(attr: TokenStream, item: TokenStream) -> TokenStream {
-    println!("blah attr: \"{}\"", attr.to_string());
-    println!("blah item: \"{}\"", item.to_string());
-    item
+pub fn dynamic_services_main(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let mut generated: proc_macro2::TokenStream = item.into();
+
+    let new_code = quote! {
+        static SERVICES: Lazy<Mutex<Vec<Box<dyn Any + Send + Sync>>>> = Lazy::new(||Mutex::new(Vec::new()));
+
+        fn register_service(svc: Box<dyn Any + Send + Sync>) {
+            println!("Registering service: {:?}", svc);
+            SERVICES.lock().unwrap().push(svc);
+
+            inject_consumers();
+        }
+    };
+    generated.extend(new_code);
+
+    generated.into()
+
+    // println!("blah attr: \"{}\"", attr.to_string());
+    // println!("blah item: \"{}\"", item.to_string());
+    // item
 }

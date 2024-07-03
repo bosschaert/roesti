@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::tidal_service::TidalService;
 use dynamic_services_derive::DynamicServices;
 use dynamic_services_derive::{activator, dynamic_services};
@@ -5,21 +7,24 @@ use dynamic_services_derive::{activator, dynamic_services};
 #[derive(DynamicServices, Debug)]
 pub struct Consumer2<'a> {
     #[inject]
-    tidal_ref_obj: &'a TidalService
+    tidal: Option<&'a TidalService>
 }
 
-// #[dynamic_services]
-impl Consumer2<'_> {
+#[dynamic_services]
+impl <'a>Consumer2<'a> {
     // Called after the constructor has been called.
     #[activator]
     pub fn activate(&self) {
-        println!("Consumer 2 Activated: {:?}", self.tidal_ref_obj);
+        println!("Consumer 2 Activated: {:?}", self.tidal);
+    }
+
+    pub fn new() -> Self {
+        Consumer2 { tidal: None }
     }
 }
-// #[derive(DynamicServices)]
-// impl <'a>Consumer2<'a> {
-//     #[constructor]
-//     pub fn new(ts: &'a TidalService) -> Self {
-//         Consumer2 { tidal_ref_obj: ts }
-//     }
-// }
+
+impl Display for Consumer2<'_> {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f, "Consumer2 {{ tidal: {} }}", self.tidal.is_some())
+  }
+}
