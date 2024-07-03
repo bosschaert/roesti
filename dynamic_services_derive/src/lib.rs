@@ -1,11 +1,11 @@
-use std::fmt::format;
-use std::{collections::HashMap, fs};
+use once_cell::sync::Lazy;
+use std::sync::Mutex;
+use std::fs;
 use std::path::{Path, PathBuf};
 
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
-use syn::{self, DataStruct, GenericArgument, PathArguments, Data, DataEnum, DataUnion,
-    DeriveInput, Error, Fields, Result, token, Type, Ident};
+use syn::{self, token, Data, DataEnum, DataStruct, DataUnion, DeriveInput, Error, Fields, GenericArgument, Ident, ItemFn, PathArguments, Result, Type};
 use proc_macro2::Span;
 use serde_json;
 
@@ -226,8 +226,24 @@ fn get_from_pathsegment(ident: &syn::Ident, segs: &syn::punctuated::Punctuated<s
 pub fn activator(attr: TokenStream, item: TokenStream) -> TokenStream {
     println!("activator attr: \"{}\"", attr.to_string());
     println!("activator item: \"{}\"", item.to_string());
+
+    let ast = syn::parse(item.clone()).unwrap();
+    get_activator_fn(ast);
+
     item
 }
+
+fn get_activator_fn(ast: ItemFn) {
+    println!("Current type: {}", CUR_TYPE.lock().unwrap());
+    println!("activator fn: {:?}", ast.sig.ident);
+    // let span = Span::call_site();
+
+    // println!("Call site: {:?}", span.parent());
+    // let filenm = format!("{}/target/_{}.act.tmp", std);
+}
+
+// static CUR_TYPE: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
+static CUR_TYPE: Lazy<Mutex<String>> = Lazy::new(||Mutex::new(String::new()));
 
 #[proc_macro_attribute]
 pub fn dynamic_services(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -243,6 +259,9 @@ pub fn dynamic_services(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     println!("*** ident {}", x.ident);
     let type_name = x.ident.to_string();
+
+    // set current type to type_name;
+    *CUR_TYPE.lock().unwrap() = type_name.clone();
 
     let mut generated: proc_macro2::TokenStream = item.into();
 

@@ -1,7 +1,7 @@
-use once_cell::sync::Lazy;
 use crate::tidal_service::TidalService;
 use std::fmt::Display;
 
+use dynamic_services_derive::activator;
 use dynamic_services_derive::dynamic_services;
 use dynamic_services_derive::DynamicServices;
 
@@ -17,6 +17,11 @@ impl Consumer1<'_> {
   pub fn default() -> Self {
     Consumer1 { blahh: 12, tidal: None }
   }
+
+  // #[activator]
+  // pub fn blah(&self) {
+  //   println!("activated")
+  // }
 }
 
 impl Display for Consumer1<'_> {
