@@ -1,7 +1,6 @@
 use crate::tidal_service::TidalService;
 use std::fmt::Display;
 
-use dynamic_services_derive::activator;
 use dynamic_services_derive::dynamic_services;
 use dynamic_services_derive::DynamicServices;
 

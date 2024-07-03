@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
-use syn::{self, token, Data, DataEnum, DataStruct, DataUnion, DeriveInput, Error, Fields, GenericArgument, Ident, ItemFn, PathArguments, Result, Type};
+use syn::{self, token, Data, DataEnum, DataStruct, DataUnion, DeriveInput, Error, Fields, GenericArgument, ItemFn, PathArguments, Result, Type};
 use proc_macro2::Span;
 use serde_json;
 
@@ -26,7 +26,7 @@ impl Action {
                 format!("{{\"op\":\"SetterInjectField\", \"field\":\"{}\", \"type\":\"{}\"}}", field, type_name)
             },
             Action::ActivatorFunct{func_name} => {
-                format!("ActivatorFunct {}", func_name)
+                format!("{{\"op\":\"ActivatorFunct\", \"method\":\"{}\"}}", func_name)
             }
         }
     }
@@ -49,7 +49,7 @@ fn impl_dynamic_services(ast: syn::DeriveInput) -> TokenStream {
     };
     println!("actions: {:?}", actions);
 
-    let name = ast.ident;
+    // let name = ast.ident;
 
     let mut lines = vec![];
     lines.push("[".to_string());
@@ -66,7 +66,7 @@ fn impl_dynamic_services(ast: syn::DeriveInput) -> TokenStream {
     lines.push("]".to_string());
     write_actions_file(tn, lines);
 
-    let mut gen = quote!{};
+    let gen = quote!{};
     /*
     for (i, s) in &types {
         let ti = format_ident!("{}", s);
@@ -157,7 +157,7 @@ fn find_injected_fields(ast: DeriveInput)
     Ok((ast.ident.to_string(), actions))
 }
 
-fn find_attribute(f: &syn::Field, name: &str) -> bool {
+fn find_attribute(f: &syn::Field, _name: &str) -> bool {
     for a in &f.attrs {
         if let Some(name) = a.path().get_ident() {
             if name == "inject" {
@@ -234,19 +234,20 @@ pub fn activator(attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 fn get_activator_fn(ast: ItemFn) {
-    println!("Current type: {}", CUR_TYPE.lock().unwrap());
+    let cur_type = CUR_TYPE.lock().unwrap();
+    println!("Current type: {}", cur_type);
     println!("activator fn: {:?}", ast.sig.ident);
-    // let span = Span::call_site();
 
-    // println!("Call site: {:?}", span.parent());
-    // let filenm = format!("{}/target/_{}.act.tmp", std);
+    let filenm = format!("{}/target/_{}.acttmp", std::env::var("CARGO_MANIFEST_DIR").unwrap(), cur_type);
+    let act = Action::ActivatorFunct{func_name: ast.sig.ident.to_string()};
+    let content = format!("[{}]", act.to_string());
+    std::fs::write(filenm, content).unwrap();
 }
 
-// static CUR_TYPE: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
 static CUR_TYPE: Lazy<Mutex<String>> = Lazy::new(||Mutex::new(String::new()));
 
 #[proc_macro_attribute]
-pub fn dynamic_services(attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn dynamic_services(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let toks: Result<syn::ItemImpl> = syn::parse(item.clone().into());
     println!("parsed {:?}", toks);
     let tokens = toks.unwrap();
@@ -313,7 +314,7 @@ fn generate_action(type_name: &str, action: &serde_json::Value) -> proc_macro2::
 }
 
 #[proc_macro_attribute]
-pub fn dynamic_services_main(attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn dynamic_services_main(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut generated: proc_macro2::TokenStream = item.into();
 
     let new_code = quote! {
@@ -386,10 +387,8 @@ fn generate_inject_function(json: serde_json::Value, type_name: &str) -> Vec<pro
         let op = action["op"].as_str().unwrap();
         match op {
             "SetterInjectField" => {
-                let field = action["field"].as_str().unwrap();
                 let injected_type_name = action["type"].as_str().unwrap();
                 let inject_fn = format_ident!("inject_{}", type_name);
-                let tn = format_ident!("{}", type_name);
                 let itn = format_ident!("{}", injected_type_name);
                 let global_list = format_ident!("CONSUMER_{}", type_name.to_uppercase());
                 let setter = format_ident!("set_{}", injected_type_name);
