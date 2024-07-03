@@ -5,14 +5,6 @@ use std::fmt::Display;
 use dynamic_services_derive::dynamic_services;
 use dynamic_services_derive::DynamicServices;
 
-
-pub static INITED: Lazy<u16> = Lazy::new(||static_init());
-
-fn static_init() -> u16 {
-  println!("**** INIT CALL");
-  12
-}
-
 #[derive(DynamicServices, Debug, Default)]
 pub struct Consumer1<'a> {
   blahh: u32,
@@ -24,10 +16,6 @@ pub struct Consumer1<'a> {
 impl Consumer1<'_> {
   pub fn default() -> Self {
     Consumer1 { blahh: 12, tidal: None }
-  }
-
-  pub fn register_as_consumer() {
-    //   crate::service_registry::SERVICE_REGISTRY.register_consumer("TidalService", || Consumer1::default());
   }
 }
 

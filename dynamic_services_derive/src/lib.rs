@@ -1,5 +1,6 @@
+use std::fmt::format;
 use std::{collections::HashMap, fs};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
@@ -308,9 +309,130 @@ pub fn dynamic_services_main(attr: TokenStream, item: TokenStream) -> TokenStrea
     };
     generated.extend(new_code);
 
-    generated.into()
+    let mut consumer_types = vec![];
+    let dir = format!("{}/target", std::env::var("CARGO_MANIFEST_DIR").unwrap());
+    let paths = fs::read_dir(dir).unwrap();
+    for path in paths {
+        if let Ok(p) = path {
+            if let Some((name, tokens)) = generate_consumer(p.path(), p.file_name().to_str().unwrap()) {
+                consumer_types.push(name);
+                generated.extend(tokens);
+            }
+        }
+    }
 
-    // println!("blah attr: \"{}\"", attr.to_string());
-    // println!("blah item: \"{}\"", item.to_string());
-    // item
+    generated.extend(generate_register_consumers(&consumer_types));
+    generated.extend(generate_inject_consumers(&consumer_types));
+
+    generated.into()
+}
+
+fn generate_consumer(path: PathBuf, file_name: &str) -> Option<(String, proc_macro2::TokenStream)> {
+    if file_name.starts_with("_") && file_name.ends_with(".tmp") {
+        let content = fs::read_to_string(path).unwrap();
+        println!("### [{}] Content: {}", file_name, content);
+        let json: serde_json::Value = serde_json::from_str(&content).unwrap();
+
+        let type_name = &file_name[1..file_name.len()-4];
+        let tn = format_ident!("{}", type_name);
+        let register_fn = format_ident!("register_{}", type_name);
+        let global_list = format_ident!("CONSUMER_{}", type_name.to_uppercase());
+
+        let inject_function = generate_inject_function(json, type_name);
+
+        let tokens = quote!{
+            static #global_list: Lazy<Mutex<Vec<fn() -> #tn<'static>>>> = Lazy::new(||Mutex::new(Vec::new()));
+
+            fn #register_fn() {
+                println!("Registering Consumer: {}", #type_name);
+                #global_list.lock().unwrap().push(|| #tn::default());
+            }
+
+            #(#inject_function)*
+            /*
+            fn #inject_fn() {
+
+            }
+             */
+        };
+        return Some((type_name.to_string(), tokens));
+    }
+    None
+}
+
+fn generate_inject_function(json: serde_json::Value, type_name: &str) -> Vec<proc_macro2::TokenStream> {
+    let mut quotes = vec![];
+
+    for action in json.as_array().unwrap() {
+        let op = action["op"].as_str().unwrap();
+        match op {
+            "SetterInjectField" => {
+                let field = action["field"].as_str().unwrap();
+                let injected_type_name = action["type"].as_str().unwrap();
+                let inject_fn = format_ident!("inject_{}", type_name);
+                let tn = format_ident!("{}", type_name);
+                let itn = format_ident!("{}", injected_type_name);
+                let global_list = format_ident!("CONSUMER_{}", type_name.to_uppercase());
+                let setter = format_ident!("set_{}", injected_type_name);
+                let q = quote! {
+                    fn #inject_fn(svc: &Box<dyn Any + Send + Sync>) {
+                        if let Some(sr) = svc.downcast_ref::<#itn>() {
+                            for ctor in #global_list.lock().unwrap().iter() {
+                                let mut c = ctor();
+                                c.#setter(sr);
+                                println!("c: {}", c);
+                            }
+                        }
+                    }
+                };
+                quotes.push(q);
+            },
+            _ => {
+                panic!("Unknown action: {}", op);
+            }
+        }
+    }
+    quotes
+}
+
+fn generate_register_consumers(consumer_types: &Vec<String>) -> proc_macro2::TokenStream {
+    let mut register_calls = vec![];
+    for ct in consumer_types {
+        let register_fn = format_ident!("register_{}", ct);
+        register_calls.push(quote!{
+            #register_fn();
+        });
+    }
+
+    let new_code = quote! {
+        static CONSUMERS_INITIALIZED: AtomicBool = AtomicBool::new(false);
+        fn register_consumers() {
+            let initialized = CONSUMERS_INITIALIZED.swap(true, Ordering::SeqCst);
+            if initialized {
+                return;
+            }
+
+            #(#register_calls)*
+        }
+    };
+    new_code
+}
+
+fn generate_inject_consumers(consumer_types: &Vec<String>) -> proc_macro2::TokenStream {
+    let mut inject_calls = vec![];
+    for ct in consumer_types {
+        let inject_fn = format_ident!("inject_{}", ct);
+        inject_calls.push(quote!{
+            #inject_fn(&svc);
+        });
+    }
+
+    let new_code = quote! {
+        fn inject_consumers() {
+            for svc in SERVICES.lock().unwrap().iter() {
+                #(#inject_calls)*
+            }
+        }
+    };
+    new_code
 }

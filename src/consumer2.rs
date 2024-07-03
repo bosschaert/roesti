@@ -4,7 +4,7 @@ use crate::tidal_service::TidalService;
 use dynamic_services_derive::DynamicServices;
 use dynamic_services_derive::{activator, dynamic_services};
 
-#[derive(DynamicServices, Debug)]
+#[derive(DynamicServices, Debug, Default)]
 pub struct Consumer2<'a> {
     #[inject]
     tidal: Option<&'a TidalService>
