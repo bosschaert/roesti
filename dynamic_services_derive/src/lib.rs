@@ -1,11 +1,12 @@
 use once_cell::sync::Lazy;
+use std::arch::is_aarch64_feature_detected;
 use std::sync::Mutex;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
-use syn::{self, token, Data, DataEnum, DataStruct, DataUnion, DeriveInput, Error, Fields, GenericArgument, ItemFn, PathArguments, Result, Type};
+use syn::{self, token, Data, DataEnum, DataStruct, DataUnion, DeriveInput, Error, Fields, FieldsUnnamed, GenericArgument, ItemFn, PathArguments, Result, Type};
 use proc_macro2::Span;
 use serde_json;
 
@@ -228,12 +229,12 @@ pub fn activator(attr: TokenStream, item: TokenStream) -> TokenStream {
     println!("activator item: \"{}\"", item.to_string());
 
     let ast = syn::parse(item.clone()).unwrap();
-    get_activator_fn(ast);
+    write_activator_fn(ast);
 
     item
 }
 
-fn get_activator_fn(ast: ItemFn) {
+fn write_activator_fn(ast: ItemFn) {
     let cur_type = CUR_TYPE.lock().unwrap();
     println!("Current type: {}", cur_type);
     println!("activator fn: {:?}", ast.sig.ident);
@@ -246,6 +247,7 @@ fn get_activator_fn(ast: ItemFn) {
 
 static CUR_TYPE: Lazy<Mutex<String>> = Lazy::new(||Mutex::new(String::new()));
 
+// For impl classes
 #[proc_macro_attribute]
 pub fn dynamic_services(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let toks: Result<syn::ItemImpl> = syn::parse(item.clone().into());
@@ -277,7 +279,7 @@ pub fn dynamic_services(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
 fn generate_class(file_path: &str, type_name: &str, generated: &mut proc_macro2::TokenStream) {
     println!("*** Generate class from file {} for type name {}", file_path, type_name);
-    let content = fs::read_to_string(file_path).expect("Unable to read file");
+    let content = fs::read_to_string(file_path).unwrap();
     let json: serde_json::Value = serde_json::from_str(&content).unwrap();
 
     for action in json.as_array().unwrap() {
@@ -313,6 +315,7 @@ fn generate_action(type_name: &str, action: &serde_json::Value) -> proc_macro2::
     }
 }
 
+// For the main class
 #[proc_macro_attribute]
 pub fn dynamic_services_main(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut generated: proc_macro2::TokenStream = item.into();
@@ -369,11 +372,6 @@ fn generate_consumer(path: PathBuf, file_name: &str) -> Option<(String, proc_mac
             }
 
             #(#inject_function)*
-            /*
-            fn #inject_fn() {
-
-            }
-             */
         };
         return Some((type_name.to_string(), tokens));
     }
@@ -382,6 +380,8 @@ fn generate_consumer(path: PathBuf, file_name: &str) -> Option<(String, proc_mac
 
 fn generate_inject_function(json: serde_json::Value, type_name: &str) -> Vec<proc_macro2::TokenStream> {
     let mut quotes = vec![];
+
+    let act_call = generate_activator_call(type_name);
 
     for action in json.as_array().unwrap() {
         let op = action["op"].as_str().unwrap();
@@ -399,6 +399,9 @@ fn generate_inject_function(json: serde_json::Value, type_name: &str) -> Vec<pro
                                 let mut c = ctor();
                                 c.#setter(sr);
                                 println!("c: {}", c);
+
+                                #act_call
+                                // generate_activate_call()
                             }
                         }
                     }
@@ -411,6 +414,39 @@ fn generate_inject_function(json: serde_json::Value, type_name: &str) -> Vec<pro
         }
     }
     quotes
+}
+
+fn generate_activator_call(type_name: &str) -> proc_macro2::TokenStream {
+    let mut new_code = quote! {};
+
+    let file = format!("{}/target/_{}.acttmp", std::env::var("CARGO_MANIFEST_DIR").unwrap(), type_name);
+    if Path::new(&file).exists() {
+        println!("Generating from {}", file);
+        generate_activator(&file, type_name, &mut new_code);
+    }
+
+    new_code
+}
+
+fn generate_activator(file: &str, type_name: &str, new_code: &mut proc_macro2::TokenStream) {
+    let acttmp_content = fs::read_to_string(file).unwrap();
+    let json: serde_json::Value = serde_json::from_str(&acttmp_content).unwrap();
+
+    for action in json.as_array().unwrap() {
+        let op = action["op"].as_str().unwrap();
+        match op {
+            "ActivatorFunct" => {
+                let func_name = action["method"].as_str().unwrap();
+                let activate_md = format_ident!("{}", func_name);
+                new_code.extend(quote! {
+                    c.#activate_md();
+                });
+            },
+            _ => {
+                panic!("Unknown action: {}", op);
+            }
+        }
+    }
 }
 
 fn generate_register_consumers(consumer_types: &Vec<String>) -> proc_macro2::TokenStream {
