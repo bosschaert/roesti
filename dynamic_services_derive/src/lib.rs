@@ -331,18 +331,21 @@ pub fn dynamic_services_main(_attr: TokenStream, item: TokenStream) -> TokenStre
         fn register_service(svc: Box<dyn Any + Send + Sync>) -> ServiceRegistration {
             register_consumers();
 
-            let sref = ServiceRegistration::new();
+            let sreg = ServiceRegistration::new();
             println!("Registering service: {:?} - {:?}", svc, sref);
-            SERVICES.lock().unwrap().insert(sref, svc);
+            SERVICES.lock().unwrap().insert(sreg, svc);
 
             inject_consumers();
-            sref
+            sreg
         }
 
         fn unregister_service(sr: ServiceRegistration) {
             println!("Unregistering service: {:?}", sr);
 
-            // uninject_consumers();
+            if SERVICES.lock().unwrap().remove(&sr).is_some() {
+                println!("Service unregistered: {:?}", sr);
+                uninject_consumers(&sr);
+            }
         }
     };
     generated.extend(new_code);
@@ -361,6 +364,7 @@ pub fn dynamic_services_main(_attr: TokenStream, item: TokenStream) -> TokenStre
 
     generated.extend(generate_register_consumers(&consumer_types));
     generated.extend(generate_inject_consumers(&consumer_types));
+    generated.extend(generate_uninject_consumers(&consumer_types));
 
     generated.into()
 }
@@ -498,6 +502,7 @@ fn generate_inject_consumers(consumer_types: &Vec<String>) -> proc_macro2::Token
     }
 
     let new_code = quote! {
+        // TODO only inject the relevant consumers and don't re-inject
         fn inject_consumers() {
             for (sreg, svc) in SERVICES.lock().unwrap().iter() {
                 #(#inject_calls)*
@@ -506,3 +511,8 @@ fn generate_inject_consumers(consumer_types: &Vec<String>) -> proc_macro2::Token
     };
     new_code
 }
+
+fn generate_uninject_consumers(consumer_types: &Vec<String>) -> proc_macro2::TokenStream {
+    quote! {}
+}
+
