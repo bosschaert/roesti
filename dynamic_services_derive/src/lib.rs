@@ -513,6 +513,9 @@ fn generate_inject_consumers(consumer_types: &Vec<String>) -> proc_macro2::Token
 }
 
 fn generate_uninject_consumers(consumer_types: &Vec<String>) -> proc_macro2::TokenStream {
+    // All consumers have in their global map as a value the list in dependent service
+    // references. Un-inject all consumers that have the service reference of the service
+    // being unregistered.
     quote! {}
 }
 
