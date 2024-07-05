@@ -1,5 +1,5 @@
 use once_cell::sync::Lazy;
-use std::arch::is_aarch64_feature_detected;
+use std::collections::HashMap;
 use std::sync::Mutex;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -305,6 +305,11 @@ fn generate_action(type_name: &str, action: &serde_json::Value) -> proc_macro2::
                         println!("[{}] Setting {} to {:?}", #type_name, #field, svc);
                         self.#injected = Some(svc);
                     }
+
+                    pub fn unset_all(&mut self) {
+                        println!("[{}] Unsetting all injected fields", #type_name);
+                        self.#injected = None;
+                    }
                 }
             };
             return new_code;
@@ -321,13 +326,23 @@ pub fn dynamic_services_main(_attr: TokenStream, item: TokenStream) -> TokenStre
     let mut generated: proc_macro2::TokenStream = item.into();
 
     let new_code = quote! {
-        static SERVICES: Lazy<Mutex<Vec<Box<dyn Any + Send + Sync>>>> = Lazy::new(||Mutex::new(Vec::new()));
+        static SERVICES: Lazy<Mutex<HashMap<ServiceRegistration, Box<dyn Any + Send + Sync>>>> = Lazy::new(||Mutex::new(HashMap::new()));
 
-        fn register_service(svc: Box<dyn Any + Send + Sync>) {
-            println!("Registering service: {:?}", svc);
-            SERVICES.lock().unwrap().push(svc);
+        fn register_service(svc: Box<dyn Any + Send + Sync>) -> ServiceRegistration {
+            register_consumers();
+
+            let sref = ServiceRegistration::new();
+            println!("Registering service: {:?} - {:?}", svc, sref);
+            SERVICES.lock().unwrap().insert(sref, svc);
 
             inject_consumers();
+            sref
+        }
+
+        fn unregister_service(sr: ServiceRegistration) {
+            println!("Unregistering service: {:?}", sr);
+
+            // uninject_consumers();
         }
     };
     generated.extend(new_code);
@@ -359,16 +374,17 @@ fn generate_consumer(path: PathBuf, file_name: &str) -> Option<(String, proc_mac
         let type_name = &file_name[1..file_name.len()-4];
         let tn = format_ident!("{}", type_name);
         let register_fn = format_ident!("register_{}", type_name);
-        let global_list = format_ident!("CONSUMER_{}", type_name.to_uppercase());
+        let global_map = format_ident!("CONSUMER_{}", type_name.to_uppercase());
 
         let inject_function = generate_inject_function(json, type_name);
 
         let tokens = quote!{
-            static #global_list: Lazy<Mutex<Vec<fn() -> #tn<'static>>>> = Lazy::new(||Mutex::new(Vec::new()));
+            static #global_map: Lazy<Mutex<HashMap<fn() -> #tn<'static>, Mutex<Vec<ServiceRegistration>>>>>
+                = Lazy::new(||Mutex::new(HashMap::new()));
 
             fn #register_fn() {
                 println!("Registering Consumer: {}", #type_name);
-                #global_list.lock().unwrap().push(|| #tn::default());
+                #global_map.lock().unwrap().insert(|| #tn::default(), Mutex::new(Vec::new()));
             }
 
             #(#inject_function)*
@@ -390,18 +406,18 @@ fn generate_inject_function(json: serde_json::Value, type_name: &str) -> Vec<pro
                 let injected_type_name = action["type"].as_str().unwrap();
                 let inject_fn = format_ident!("inject_{}", type_name);
                 let itn = format_ident!("{}", injected_type_name);
-                let global_list = format_ident!("CONSUMER_{}", type_name.to_uppercase());
+                let global_map = format_ident!("CONSUMER_{}", type_name.to_uppercase());
                 let setter = format_ident!("set_{}", injected_type_name);
                 let q = quote! {
-                    fn #inject_fn(svc: &Box<dyn Any + Send + Sync>) {
+                    fn #inject_fn(svc: &Box<dyn Any + Send + Sync>, sreg: ServiceRegistration) {
                         if let Some(sr) = svc.downcast_ref::<#itn>() {
-                            for ctor in #global_list.lock().unwrap().iter() {
+                            for (ctor, sregs) in #global_map.lock().unwrap().iter() {
                                 let mut c = ctor();
                                 c.#setter(sr);
+                                sregs.lock().unwrap().push(sreg);
                                 println!("c: {}", c);
 
                                 #act_call
-                                // generate_activate_call()
                             }
                         }
                     }
@@ -477,13 +493,13 @@ fn generate_inject_consumers(consumer_types: &Vec<String>) -> proc_macro2::Token
     for ct in consumer_types {
         let inject_fn = format_ident!("inject_{}", ct);
         inject_calls.push(quote!{
-            #inject_fn(&svc);
+            #inject_fn(svc, *sreg);
         });
     }
 
     let new_code = quote! {
         fn inject_consumers() {
-            for svc in SERVICES.lock().unwrap().iter() {
+            for (sreg, svc) in SERVICES.lock().unwrap().iter() {
                 #(#inject_calls)*
             }
         }

@@ -2,6 +2,7 @@ use once_cell::sync::Lazy;
 use std::any::Any;
 use std::collections::HashMap;
 use std::sync::Mutex;
+use uuid::Uuid;
 
 pub static SERVICE_REGISTRY: Lazy<ServiceRegistry> = Lazy::new(||ServiceRegistry::new());
 
@@ -47,4 +48,17 @@ impl ServiceRegistry {
     //         (deps, ctor)
     //     );
     // }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ServiceRegistration {
+    id: Uuid
+}
+
+impl ServiceRegistration {
+    pub fn new() -> ServiceRegistration {
+        ServiceRegistration {
+            id: Uuid::new_v4()
+        }
+    }
 }

@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 dynamic_services_derive = { path = "./dynamic_services_derive" }
 once_cell = "1"
+uuid = { version = "1", features = ["v4"]}
