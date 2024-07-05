@@ -332,7 +332,7 @@ pub fn dynamic_services_main(_attr: TokenStream, item: TokenStream) -> TokenStre
             register_consumers();
 
             let sreg = ServiceRegistration::new();
-            println!("Registering service: {:?} - {:?}", svc, sref);
+            println!("Registering service: {:?} - {:?}", svc, sreg);
             SERVICES.lock().unwrap().insert(sreg, svc);
 
             inject_consumers();
@@ -516,6 +516,14 @@ fn generate_uninject_consumers(consumer_types: &Vec<String>) -> proc_macro2::Tok
     // All consumers have in their global map as a value the list in dependent service
     // references. Un-inject all consumers that have the service reference of the service
     // being unregistered.
-    quote! {}
+    quote! {
+        fn uninject_consumers(sr: &ServiceRegistration) {
+            // TODO only uninject the relevant consumers
+            // for (ctor, sregs) in CONSUMERS.iter() {
+            //     let mut sregs = sregs.lock().unwrap();
+            //     sregs.retain(|sreg| sreg != sr);
+            // }
+        }
+    }
 }
 
