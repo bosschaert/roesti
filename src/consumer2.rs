@@ -19,8 +19,8 @@ impl <'a>Consumer2<'a> {
     // Called after the constructor has been called.
     // TODO pass in reference to service?
     #[activator]
-    pub fn activate(&self) {
-        println!("Consumer 2 Activated...");
+    pub fn activate(&self, ts: &TidalService) {
+        println!("Consumer 2 Activated... {}", ts.next_event());
         self.invoke_tidal(|sr| {
           let ne = sr.next_event();
           println!("Custom next event: {}", ne);
