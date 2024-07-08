@@ -23,9 +23,8 @@ impl <'a>Consumer2<'a> {
         println!("Consumer 2 Activated...");
         self.invoke_tidal(|sr| {
           let ne = sr.next_event();
-          println!("next event: {}", ne);
+          println!("Custom next event: {}", ne);
         });
-        println!("Attempted invoke");
     }
 
     #[deactivator]

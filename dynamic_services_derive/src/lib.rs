@@ -1,12 +1,11 @@
 use once_cell::sync::Lazy;
-use std::collections::HashMap;
 use std::sync::Mutex;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
-use syn::{self, token, Data, DataEnum, DataStruct, DataUnion, DeriveInput, Error, Fields, FieldsUnnamed, GenericArgument, ItemFn, PathArguments, Result, Type};
+use syn::{self, token, Data, DataEnum, DataStruct, DataUnion, DeriveInput, Error, Fields, GenericArgument, ItemFn, PathArguments, Result, Type};
 use proc_macro2::Span;
 use serde_json;
 
@@ -223,6 +222,7 @@ fn get_from_pathsegment(ident: &syn::Ident, segs: &syn::punctuated::Punctuated<s
     }
 }
 
+// TODO can this be done as part of the dynamic_services attribute macro as its embedded in there
 #[proc_macro_attribute]
 pub fn activator(attr: TokenStream, item: TokenStream) -> TokenStream {
     println!("activator attr: \"{}\"", attr.to_string());
@@ -245,6 +245,7 @@ fn write_activator_fn(ast: ItemFn) {
     std::fs::write(filenm, content).unwrap();
 }
 
+// TODO can this be done as part of the dynamic_services attribute macro as its embedded in there
 #[proc_macro_attribute]
 pub fn deactivator(attr: TokenStream, item: TokenStream) -> TokenStream {
     println!("deactivator attr: \"{}\"", attr.to_string());
@@ -344,10 +345,8 @@ fn generate_action(type_name: &str, action: &serde_json::Value) -> proc_macro2::
                     }
 
                     fn #invoke_svc(&self, cb: impl Fn (&#itn)) {
-                        println!("About to lock REGD_SERVICES");
                         let sr = REGD_SERVICES.read().unwrap();
                         let svc = sr.get(&self.#svc_ref.unwrap()).unwrap();
-                        println!("Checking service: {:?}", svc);
                         if let Some(sr) = svc.downcast_ref::<#itn>() {
                             cb(sr);
                         }
@@ -380,8 +379,6 @@ pub fn dynamic_services_main(_attr: TokenStream, item: TokenStream) -> TokenStre
         }
 
         fn unregister_service(sr: ServiceRegistration) {
-            println!("Unregistering service: {:?}", sr);
-
             if REGD_SERVICES.write().unwrap().remove(&sr).is_some() {
                 println!("Service unregistered: {:?}", sr);
                 uninject_consumers(&sr);
@@ -452,24 +449,19 @@ fn generate_inject_function(json: serde_json::Value, type_name: &str) -> Vec<pro
         match op {
             "SetterInjectField" => {
                 let injected_type_name = action["type"].as_str().unwrap();
-                let injected_field = action["field"].as_str().unwrap();
                 let inject_fn = format_ident!("inject_{}", type_name);
                 let uninject_fn = format_ident!("uninject_{}", type_name);
                 let itn = format_ident!("{}", injected_type_name);
                 let global_ctor_map = format_ident!("CONSUMER_CTOR_{}", type_name.to_uppercase());
                 let global_inst_map = format_ident!("CONSUMER_INST_{}", type_name.to_uppercase());
                 let setter_ref = format_ident!("set_{}_ref", injected_type_name);
-                let invoke_svc = format_ident!("invoke_{}", injected_field);
                 let q = quote! {
                     fn #inject_fn(svcx: &Box<dyn Any + Send + Sync>, sreg: ServiceRegistration) {
                         if let Some(sr) = svcx.downcast_ref::<#itn>() {
                             for ctor in #global_ctor_map.lock().unwrap().iter() {
                                 let mut c = ctor();
-                                // c.#setter(sr);
                                 c.#setter_ref(sreg.clone());
 
-                                // println!("c: {}", c);
-                                // let regs = vec![];
                                 #act_call
 
                                 // Keep the consumer instance in the global map
@@ -487,9 +479,9 @@ fn generate_inject_function(json: serde_json::Value, type_name: &str) -> Vec<pro
                         global.iter_mut()
                             .filter(|(_, (_, regs))| regs.contains(sreg))
                             .for_each(|(ci, (c, _))| {
-                                #deact_call
-                                c.unset_all();
                                 deleted.push(ci.clone());
+                                c.unset_all();
+                                #deact_call
                             });
                         deleted.iter().for_each(|ci| { global.remove(ci); });
                     }

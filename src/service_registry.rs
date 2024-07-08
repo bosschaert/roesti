@@ -1,10 +1,9 @@
 use once_cell::sync::Lazy;
 use std::any::Any;
 use std::collections::HashMap;
-use std::sync::{Mutex, RwLock};
+use std::sync::RwLock;
 use uuid::Uuid;
 
-// pub static SERVICE_REGISTRY: Lazy<ServiceRegistry> = Lazy::new(||ServiceRegistry::new());
 pub static REGD_SERVICES: Lazy<RwLock<HashMap<ServiceRegistration, Box<dyn Any + Send + Sync>>>>
     = Lazy::new(||RwLock::new(HashMap::new()));
 
