@@ -1,17 +1,19 @@
 use std::fmt::Display;
 
 use crate::tidal_service::TidalService;
-use crate::service_registry::{ServiceRegistration, REGD_SERVICES};
+use crate::service_registry::{ServiceReference, ServiceRegistration, REGD_SERVICES};
 use dynamic_services_derive::DynamicServices;
 use dynamic_services_derive::{activator, deactivator, dynamic_services};
 
 #[derive(DynamicServices, Debug, Default)]
 pub struct Consumer2<'a> {
+    // TODO change the inject to the ref
     #[inject]
     tidal: Option<&'a TidalService>,
 
     // TODO generate this one?
-    tidal_ref: Option<ServiceRegistration>,
+    // tidal_ref: Option<ServiceRegistration>,
+    tidal_ref: Option<ServiceReference<TidalService>>,
 }
 
 #[dynamic_services]
@@ -20,7 +22,7 @@ impl <'a>Consumer2<'a> {
     // TODO pass in reference to service?
     #[activator]
     pub fn activate(&self, ts: &TidalService) {
-        println!("Consumer 2 Activated... {}", ts.next_event());
+        println!("Consumer 2 Activated... {} - {:?}", ts.next_event(), self.tidal_ref);
         self.invoke_tidal(|sr| {
             let ne = sr.next_event();
             println!("Custom next event: {}", ne);

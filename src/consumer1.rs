@@ -1,4 +1,4 @@
-use crate::service_registry::{ServiceRegistration, REGD_SERVICES};
+use crate::service_registry::{ServiceReference, ServiceRegistration, REGD_SERVICES};
 use crate::tidal_service::TidalService;
 use std::fmt::Display;
 
@@ -10,7 +10,7 @@ pub struct Consumer1<'a> {
   blahh: u32,
   #[inject]
   tidal: Option<&'a TidalService>,
-  tidal_ref: Option<ServiceRegistration>,
+  tidal_ref: Option<ServiceReference<TidalService>>,
 }
 
 #[dynamic_services]

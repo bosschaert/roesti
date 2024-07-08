@@ -1,6 +1,7 @@
 use once_cell::sync::Lazy;
 use std::any::Any;
 use std::collections::HashMap;
+use std::marker::PhantomData;
 use std::sync::RwLock;
 use uuid::Uuid;
 
@@ -28,6 +29,27 @@ impl ServiceRegistration {
     pub fn new() -> ServiceRegistration {
         ServiceRegistration {
             id: Uuid::new_v4(),
+        }
+    }
+
+    pub fn from<T>(sr: &ServiceReference<T>) -> ServiceRegistration {
+        ServiceRegistration {
+            id: sr.id,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ServiceReference<T> {
+    id: Uuid,
+    _phantom: std::marker::PhantomData<T>,
+}
+
+impl <T>ServiceReference<T> {
+    pub fn from(sr: &ServiceRegistration) -> ServiceReference<T> {
+        ServiceReference {
+            id: sr.id,
+            _phantom: PhantomData,
         }
     }
 }

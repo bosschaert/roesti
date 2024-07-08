@@ -325,7 +325,6 @@ fn generate_action(type_name: &str, action: &serde_json::Value) -> proc_macro2::
             let injected = format_ident!("{}", field);
             let injected_ref = format_ident!("{}_ref", field);
             let invoke_svc = format_ident!("invoke_{}", field);
-            let svc_ref = format_ident!("{}_ref", field);
             let new_code = quote! {
                 impl<'_ds> #tn<'_ds> {
                     // TODO delete
@@ -334,9 +333,9 @@ fn generate_action(type_name: &str, action: &serde_json::Value) -> proc_macro2::
                         self.#injected = Some(svc);
                     }
 
-                    pub fn #set_ts_ref(&mut self, sreg: ServiceRegistration) {
+                    pub fn #set_ts_ref(&mut self, sreg: &ServiceRegistration) {
                         println!("[{}] Setting {} to {:?}", #type_name, #field, sreg);
-                        self.#injected_ref = Some(sreg);
+                        self.#injected_ref = Some(ServiceReference::from(sreg));
                     }
 
                     pub fn unset_all(&mut self) {
@@ -346,7 +345,9 @@ fn generate_action(type_name: &str, action: &serde_json::Value) -> proc_macro2::
 
                     fn #invoke_svc(&self, cb: impl Fn (&#itn)) {
                         let sr = REGD_SERVICES.read().unwrap();
-                        let svc = sr.get(&self.#svc_ref.unwrap()).unwrap();
+                        let sref = &self.#injected_ref.as_ref().unwrap();
+                        let sreg = ServiceRegistration::from(sref);
+                        let svc = sr.get(&sreg).unwrap();
                         if let Some(sr) = svc.downcast_ref::<#itn>() {
                             cb(sr);
                         }
@@ -460,7 +461,7 @@ fn generate_inject_function(json: serde_json::Value, type_name: &str) -> Vec<pro
                         if let Some(sr) = svc.downcast_ref::<#itn>() {
                             for ctor in #global_ctor_map.lock().unwrap().iter() {
                                 let mut c = ctor();
-                                c.#setter_ref(sreg.clone());
+                                c.#setter_ref(&sreg);
 
                                 #act_call(sr);
 
