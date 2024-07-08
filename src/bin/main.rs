@@ -8,7 +8,7 @@ use std::thread;
 use roesti::{test_service_registry::TestServiceRegistry, sunlight_service::SunlightService, tidal_service::TidalService, location::Location};
 use roesti::consumer1::Consumer1;
 use roesti::consumer2::Consumer2;
-use roesti::service_registry::{ServiceRegistry, ServiceRegistration};
+use roesti::service_registry::{ServiceRegistration, ServiceRegistry, REGD_SERVICES};
 
 use dynamic_services_derive::dynamic_services_main;
 

@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(PartialEq, Eq, Hash, Debug)]
 pub struct TidalService {
     pub location: String
 }

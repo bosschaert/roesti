@@ -1,26 +1,23 @@
+use crate::service_registry::{ServiceRegistration, REGD_SERVICES};
 use crate::tidal_service::TidalService;
 use std::fmt::Display;
 
 use dynamic_services_derive::dynamic_services;
 use dynamic_services_derive::DynamicServices;
 
-#[derive(DynamicServices, Debug, Default)]
+#[derive(DynamicServices, PartialEq, Eq, Hash, Debug, Default)]
 pub struct Consumer1<'a> {
   blahh: u32,
   #[inject]
-  tidal: Option<&'a TidalService>
+  tidal: Option<&'a TidalService>,
+  tidal_ref: Option<ServiceRegistration>,
 }
 
 #[dynamic_services]
 impl Consumer1<'_> {
   pub fn default() -> Self {
-    Consumer1 { blahh: 12, tidal: None }
+    Consumer1 { blahh: 12, tidal: None, tidal_ref: None }
   }
-
-  // #[activator]
-  // pub fn blah(&self) {
-  //   println!("activated")
-  // }
 }
 
 impl Display for Consumer1<'_> {

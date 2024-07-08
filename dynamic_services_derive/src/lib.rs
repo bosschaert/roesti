@@ -297,18 +297,38 @@ fn generate_action(type_name: &str, action: &serde_json::Value) -> proc_macro2::
             println!("[{}] SetterInjectField {} {}", type_name, field, injected_type_name);
             let tn = format_ident!("{}", type_name);
             let set_ts = format_ident!("set_{}", injected_type_name);
+            let set_ts_ref = format_ident!("set_{}_ref", injected_type_name);
             let itn = format_ident!("{}", injected_type_name);
             let injected = format_ident!("{}", field);
+            let injected_ref = format_ident!("{}_ref", field);
+            let invoke_svc = format_ident!("invoke_{}", field);
+            let svc_ref = format_ident!("{}_ref", field);
             let new_code = quote! {
                 impl<'_ds> #tn<'_ds> {
+                    // TODO delete
                     pub fn #set_ts(&mut self, svc: &'_ds #itn) {
                         println!("[{}] Setting {} to {:?}", #type_name, #field, svc);
                         self.#injected = Some(svc);
                     }
 
+                    pub fn #set_ts_ref(&mut self, sreg: ServiceRegistration) {
+                        println!("[{}] Setting {} to {:?}", #type_name, #field, sreg);
+                        self.#injected_ref = Some(sreg);
+                    }
+
                     pub fn unset_all(&mut self) {
                         println!("[{}] Unsetting all injected fields", #type_name);
                         self.#injected = None;
+                    }
+
+                    fn #invoke_svc(&self, cb: impl Fn (&#itn)) {
+                        println!("About to lock REGD_SERVICES");
+                        let sr = REGD_SERVICES.read().unwrap();
+                        let svc = sr.get(&self.#svc_ref.unwrap()).unwrap();
+                        println!("Checking service: {:?}", svc);
+                        if let Some(sr) = svc.downcast_ref::<#itn>() {
+                            cb(sr);
+                        }
                     }
                 }
             };
@@ -326,14 +346,12 @@ pub fn dynamic_services_main(_attr: TokenStream, item: TokenStream) -> TokenStre
     let mut generated: proc_macro2::TokenStream = item.into();
 
     let new_code = quote! {
-        static SERVICES: Lazy<Mutex<HashMap<ServiceRegistration, Box<dyn Any + Send + Sync>>>> = Lazy::new(||Mutex::new(HashMap::new()));
-
         fn register_service(svc: Box<dyn Any + Send + Sync>) -> ServiceRegistration {
             register_consumers();
 
             let sreg = ServiceRegistration::new();
             println!("Registering service: {:?} - {:?}", svc, sreg);
-            SERVICES.lock().unwrap().insert(sreg, svc);
+            REGD_SERVICES.write().unwrap().insert(sreg, svc);
 
             inject_consumers();
             sreg
@@ -342,7 +360,7 @@ pub fn dynamic_services_main(_attr: TokenStream, item: TokenStream) -> TokenStre
         fn unregister_service(sr: ServiceRegistration) {
             println!("Unregistering service: {:?}", sr);
 
-            if SERVICES.lock().unwrap().remove(&sr).is_some() {
+            if REGD_SERVICES.write().unwrap().remove(&sr).is_some() {
                 println!("Service unregistered: {:?}", sr);
                 uninject_consumers(&sr);
             }
@@ -378,17 +396,20 @@ fn generate_consumer(path: PathBuf, file_name: &str) -> Option<(String, proc_mac
         let type_name = &file_name[1..file_name.len()-4];
         let tn = format_ident!("{}", type_name);
         let register_fn = format_ident!("register_{}", type_name);
-        let global_map = format_ident!("CONSUMER_{}", type_name.to_uppercase());
+        let global_ctor_map = format_ident!("CONSUMER_CTOR_{}", type_name.to_uppercase());
+        let global_inst_map = format_ident!("CONSUMER_INST_{}", type_name.to_uppercase());
 
         let inject_function = generate_inject_function(json, type_name);
 
         let tokens = quote!{
-            static #global_map: Lazy<Mutex<HashMap<fn() -> #tn<'static>, Mutex<Vec<ServiceRegistration>>>>>
+            static #global_ctor_map: Lazy<Mutex<Vec<fn() -> #tn<'static>>>>
+                = Lazy::new(||Mutex::new(Vec::new()));
+            static #global_inst_map: Lazy<Mutex<HashMap<#tn, Vec<ServiceRegistration>>>>
                 = Lazy::new(||Mutex::new(HashMap::new()));
 
             fn #register_fn() {
                 println!("Registering Consumer: {}", #type_name);
-                #global_map.lock().unwrap().insert(|| #tn::default(), Mutex::new(Vec::new()));
+                #global_ctor_map.lock().unwrap().push(|| #tn::default());
             }
 
             #(#inject_function)*
@@ -408,20 +429,28 @@ fn generate_inject_function(json: serde_json::Value, type_name: &str) -> Vec<pro
         match op {
             "SetterInjectField" => {
                 let injected_type_name = action["type"].as_str().unwrap();
+                let injected_field = action["field"].as_str().unwrap();
                 let inject_fn = format_ident!("inject_{}", type_name);
                 let itn = format_ident!("{}", injected_type_name);
-                let global_map = format_ident!("CONSUMER_{}", type_name.to_uppercase());
-                let setter = format_ident!("set_{}", injected_type_name);
+                let global_ctor_map = format_ident!("CONSUMER_CTOR_{}", type_name.to_uppercase());
+                let global_inst_map = format_ident!("CONSUMER_INST_{}", type_name.to_uppercase());
+                let setter_ref = format_ident!("set_{}_ref", injected_type_name);
+                let invoke_svc = format_ident!("invoke_{}", injected_field);
                 let q = quote! {
-                    fn #inject_fn(svc: &Box<dyn Any + Send + Sync>, sreg: ServiceRegistration) {
-                        if let Some(sr) = svc.downcast_ref::<#itn>() {
-                            for (ctor, sregs) in #global_map.lock().unwrap().iter() {
+                    fn #inject_fn(svcx: &Box<dyn Any + Send + Sync>, sreg: ServiceRegistration) {
+                        if let Some(sr) = svcx.downcast_ref::<#itn>() {
+                            for ctor in #global_ctor_map.lock().unwrap().iter() {
                                 let mut c = ctor();
-                                c.#setter(sr);
-                                sregs.lock().unwrap().push(sreg);
-                                println!("c: {}", c);
+                                // c.#setter(sr);
+                                c.#setter_ref(sreg.clone());
 
+                                // println!("c: {}", c);
+                                // let regs = vec![];
                                 #act_call
+
+                                // Keep the consumer instance in the global map
+                                let regs = vec![sreg];
+                                #global_inst_map.lock().unwrap().insert(c, regs);
                             }
                         }
                     }
@@ -504,7 +533,7 @@ fn generate_inject_consumers(consumer_types: &Vec<String>) -> proc_macro2::Token
     let new_code = quote! {
         // TODO only inject the relevant consumers and don't re-inject
         fn inject_consumers() {
-            for (sreg, svc) in SERVICES.lock().unwrap().iter() {
+            for (sreg, svc) in REGD_SERVICES.read().unwrap().iter() {
                 #(#inject_calls)*
             }
         }
@@ -516,13 +545,18 @@ fn generate_uninject_consumers(consumer_types: &Vec<String>) -> proc_macro2::Tok
     // All consumers have in their global map as a value the list in dependent service
     // references. Un-inject all consumers that have the service reference of the service
     // being unregistered.
+
+    let mut uninject_calls = vec![];
+    for ct in consumer_types {
+        let uninject_fn = format_ident!("uninject_{}", ct);
+        uninject_calls.push(quote!{
+            // #uninject_fn(sr);
+        });
+    }
+
     quote! {
         fn uninject_consumers(sr: &ServiceRegistration) {
-            // TODO only uninject the relevant consumers
-            // for (ctor, sregs) in CONSUMERS.iter() {
-            //     let mut sregs = sregs.lock().unwrap();
-            //     sregs.retain(|sreg| sreg != sr);
-            // }
+            #(#uninject_calls)*
         }
     }
 }
