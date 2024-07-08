@@ -5,7 +5,7 @@ use std::fmt::Display;
 use dynamic_services_derive::dynamic_services;
 use dynamic_services_derive::DynamicServices;
 
-#[derive(DynamicServices, PartialEq, Eq, Hash, Debug, Default)]
+#[derive(DynamicServices, Debug, Default)]
 pub struct Consumer1<'a> {
   blahh: u32,
   #[inject]

@@ -21,13 +21,13 @@ impl ServiceRegistry {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ServiceRegistration {
-    id: Uuid
+    id: Uuid,
 }
 
 impl ServiceRegistration {
     pub fn new() -> ServiceRegistration {
         ServiceRegistration {
-            id: Uuid::new_v4()
+            id: Uuid::new_v4(),
         }
     }
 }
