@@ -33,58 +33,7 @@ fn main() {
     thread::sleep(Duration::from_secs(1));
     unregister_service(sreg);
 
-    let mut deleted = vec![];
-    let mut cim = CONSUMER_INST_CONSUMERX.lock().unwrap();
-    cim.iter_mut()
-        .filter(|(_, (_, regs))| regs.len() > 0)
-        .for_each(|(ci, (c, _))| {
-            // let (c, _) = cr;
-            c.unset_all();
-            deleted.push(ci.clone());
-        });
-    // cim.retain(f)
-
-    deleted.iter().for_each(|ci| { cim.remove(ci); } );
-    // cim
-    // let mut keyrefs = Vec::new();
-    // {
-    //     let mut m = CONSUMER_INST_CONSUMERX.lock().unwrap();
-    //     m.keys().for_each(|k| {
-    //         keyrefs.push(k);
-    //     });
-    // }
-    // {
-    //     let mut m = CONSUMER_INST_CONSUMERX.lock().unwrap();
-    //     keyrefs.iter().for_each(|k| {
-    //         m.remove(k);
-    //     });
-    // }
-    // keyrefs.iter().for_each(|k| {
-    //     m.remove(k);
-    // });
-    // m.
-    // let mut keys = m.keys();
-
     thread::sleep(Duration::MAX);
-
-
-
-    // let mut m = CONSUMER_INST_CONSUMER2.lock().unwrap();
-    // let mut keys = m.keys();
-    // for mut k in keys {
-    //     // if let Some(mut mk) = m.get_mut(k) {
-    //         k.unset_all();
-    //     // }
-    // }
-
-    // // let mut i: (&mut Consumer2, Vec<ServiceRegistration>) = m.iter_mut();
-    // let mut i: std::collections::hash_map::IterMut<'_, &mut Consumer2<'static>, Vec<ServiceRegistration>> = m.iter_mut();
-    // i.for_each(|(c, _)| {
-    //     c.unset_all();
-    // });
-    // i.filter(|(_, regs)| regs.len() > 0).for_each(|(cons, _)| {
-    //     cons.unset_all();
-    // });
 
     // -------------------------------------------
     mainx(); // never called

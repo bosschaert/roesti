@@ -12,22 +12,22 @@ use serde_json;
 
 #[derive(Debug)]
 enum Action {
-    CtorInjectField{field: String, type_name: String},
     SetterInjectField{field: String, type_name: String},
-    ActivatorFunct{func_name: String}
+    ActivatorFunct{func_name: String},
+    DeactivatorFunct{func_name: String}
 }
 
 impl Action {
     fn to_string(&self) -> String {
         match self {
-            Action::CtorInjectField{field, type_name} => {
-                format!("CtorInjectField {} {}", field, type_name)
-            },
             Action::SetterInjectField{field, type_name} => {
                 format!("{{\"op\":\"SetterInjectField\", \"field\":\"{}\", \"type\":\"{}\"}}", field, type_name)
             },
             Action::ActivatorFunct{func_name} => {
                 format!("{{\"op\":\"ActivatorFunct\", \"method\":\"{}\"}}", func_name)
+            },
+            Action::DeactivatorFunct{func_name} => {
+                format!("{{\"op\":\"DeactivatorFunct\", \"method\":\"{}\"}}", func_name)
             }
         }
     }
@@ -245,6 +245,28 @@ fn write_activator_fn(ast: ItemFn) {
     std::fs::write(filenm, content).unwrap();
 }
 
+#[proc_macro_attribute]
+pub fn deactivator(attr: TokenStream, item: TokenStream) -> TokenStream {
+    println!("deactivator attr: \"{}\"", attr.to_string());
+    println!("deactivator item: \"{}\"", item.to_string());
+
+    let ast = syn::parse(item.clone()).unwrap();
+    write_deactivator_fn(ast);
+
+    item
+}
+
+fn write_deactivator_fn(ast: ItemFn) {
+    let cur_type = CUR_TYPE.lock().unwrap();
+    println!("Current type: {}", cur_type);
+    println!("deactivator fn: {:?}", ast.sig.ident);
+
+    let filenm = format!("{}/target/_{}.deacttmp", std::env::var("CARGO_MANIFEST_DIR").unwrap(), cur_type);
+    let act = Action::DeactivatorFunct{func_name: ast.sig.ident.to_string()};
+    let content = format!("[{}]", act.to_string());
+    std::fs::write(filenm, content).unwrap();
+}
+
 static CUR_TYPE: Lazy<Mutex<String>> = Lazy::new(||Mutex::new(String::new()));
 
 // For impl classes
@@ -423,6 +445,7 @@ fn generate_inject_function(json: serde_json::Value, type_name: &str) -> Vec<pro
     let mut quotes = vec![];
 
     let act_call = generate_activator_call(type_name);
+    let deact_call = generate_deactivator_call(type_name);
 
     for action in json.as_array().unwrap() {
         let op = action["op"].as_str().unwrap();
@@ -464,6 +487,7 @@ fn generate_inject_function(json: serde_json::Value, type_name: &str) -> Vec<pro
                         global.iter_mut()
                             .filter(|(_, (_, regs))| regs.contains(sreg))
                             .for_each(|(ci, (c, _))| {
+                                #deact_call
                                 c.unset_all();
                                 deleted.push(ci.clone());
                             });
@@ -486,13 +510,13 @@ fn generate_activator_call(type_name: &str) -> proc_macro2::TokenStream {
     let file = format!("{}/target/_{}.acttmp", std::env::var("CARGO_MANIFEST_DIR").unwrap(), type_name);
     if Path::new(&file).exists() {
         println!("Generating from {}", file);
-        generate_activator(&file, type_name, &mut new_code);
+        generate_activator(&file, &mut new_code);
     }
 
     new_code
 }
 
-fn generate_activator(file: &str, type_name: &str, new_code: &mut proc_macro2::TokenStream) {
+fn generate_activator(file: &str, new_code: &mut proc_macro2::TokenStream) {
     let acttmp_content = fs::read_to_string(file).unwrap();
     let json: serde_json::Value = serde_json::from_str(&acttmp_content).unwrap();
 
@@ -500,6 +524,40 @@ fn generate_activator(file: &str, type_name: &str, new_code: &mut proc_macro2::T
         let op = action["op"].as_str().unwrap();
         match op {
             "ActivatorFunct" => {
+                let func_name = action["method"].as_str().unwrap();
+                let activate_md = format_ident!("{}", func_name);
+                new_code.extend(quote! {
+                    c.#activate_md();
+                });
+            },
+            _ => {
+                panic!("Unknown action: {}", op);
+            }
+        }
+    }
+}
+
+fn generate_deactivator_call(type_name: &str) -> proc_macro2::TokenStream {
+    let mut new_code = quote! {};
+
+    let file = format!("{}/target/_{}.deacttmp", std::env::var("CARGO_MANIFEST_DIR").unwrap(), type_name);
+    if Path::new(&file).exists() {
+        println!("Generating from {}", file);
+        generate_deactivator(&file, &mut new_code);
+    }
+
+    new_code
+}
+
+// TODO collapse with activator
+fn generate_deactivator(file: &str, new_code: &mut proc_macro2::TokenStream) {
+    let acttmp_content = fs::read_to_string(file).unwrap();
+    let json: serde_json::Value = serde_json::from_str(&acttmp_content).unwrap();
+
+    for action in json.as_array().unwrap() {
+        let op = action["op"].as_str().unwrap();
+        match op {
+            "DeactivatorFunct" => {
                 let func_name = action["method"].as_str().unwrap();
                 let activate_md = format_ident!("{}", func_name);
                 new_code.extend(quote! {
