@@ -318,7 +318,7 @@ fn generate_action(type_name: &str, action: &serde_json::Value) -> proc_macro2::
 
                     pub fn unset_all(&mut self) {
                         println!("[{}] Unsetting all injected fields", #type_name);
-                        self.#injected = None;
+                        self.#injected_ref = None;
                     }
 
                     fn #invoke_svc(&self, cb: impl Fn (&#itn)) {
@@ -404,7 +404,7 @@ fn generate_consumer(path: PathBuf, file_name: &str) -> Option<(String, proc_mac
         let tokens = quote!{
             static #global_ctor_map: Lazy<Mutex<Vec<fn() -> #tn<'static>>>>
                 = Lazy::new(||Mutex::new(Vec::new()));
-            static #global_inst_map: Lazy<Mutex<HashMap<#tn, Vec<ServiceRegistration>>>>
+            static #global_inst_map: Lazy<Mutex<HashMap<ConsumerRegistration, (#tn, Vec<ServiceRegistration>)>>>
                 = Lazy::new(||Mutex::new(HashMap::new()));
 
             fn #register_fn() {
@@ -431,6 +431,7 @@ fn generate_inject_function(json: serde_json::Value, type_name: &str) -> Vec<pro
                 let injected_type_name = action["type"].as_str().unwrap();
                 let injected_field = action["field"].as_str().unwrap();
                 let inject_fn = format_ident!("inject_{}", type_name);
+                let uninject_fn = format_ident!("uninject_{}", type_name);
                 let itn = format_ident!("{}", injected_type_name);
                 let global_ctor_map = format_ident!("CONSUMER_CTOR_{}", type_name.to_uppercase());
                 let global_inst_map = format_ident!("CONSUMER_INST_{}", type_name.to_uppercase());
@@ -450,9 +451,23 @@ fn generate_inject_function(json: serde_json::Value, type_name: &str) -> Vec<pro
 
                                 // Keep the consumer instance in the global map
                                 let regs = vec![sreg];
-                                #global_inst_map.lock().unwrap().insert(c, regs);
+                                #global_inst_map.lock().unwrap().insert(
+                                    ConsumerRegistration::new(),
+                                    (c, regs));
                             }
                         }
+                    }
+
+                    fn #uninject_fn(sreg: &ServiceRegistration) {
+                        let mut deleted = vec![];
+                        let mut global = #global_inst_map.lock().unwrap();
+                        global.iter_mut()
+                            .filter(|(_, (_, regs))| regs.contains(sreg))
+                            .for_each(|(ci, (c, _))| {
+                                c.unset_all();
+                                deleted.push(ci.clone());
+                            });
+                        deleted.iter().for_each(|ci| { global.remove(ci); });
                     }
                 };
                 quotes.push(q);
@@ -548,9 +563,10 @@ fn generate_uninject_consumers(consumer_types: &Vec<String>) -> proc_macro2::Tok
 
     let mut uninject_calls = vec![];
     for ct in consumer_types {
+        // let global_inst_map = format_ident!("CONSUMER_INST_{}", type_name.to_uppercase());
         let uninject_fn = format_ident!("uninject_{}", ct);
         uninject_calls.push(quote!{
-            // #uninject_fn(sr);
+            #uninject_fn(sr);
         });
     }
 

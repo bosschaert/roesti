@@ -28,18 +28,6 @@ impl <'a>Consumer2<'a> {
     pub fn new() -> Self {
         Consumer2 { tidal: None, tidal_ref: None }
     }
-
-    // fn invoke_tidal(&self, ts: impl Fn(&TidalService)) {
-    //   let sr = REGD_SERVICES.lock().unwrap();
-    //   let svc = sr.get(&self.tidal_ref.unwrap()).unwrap();
-    //   if let Some(sr) = svc.downcast_ref::<TidalService>() {
-    //     ts(sr);
-    //   }
-    // }
-
-    // pub fn set_TidalService_ref(&mut self, sr: ServiceRegistration) {
-    //   self.tidal_ref = Some(sr);
-    // }
 }
 
 impl Display for Consumer2<'_> {
