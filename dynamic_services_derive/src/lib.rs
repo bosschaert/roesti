@@ -457,16 +457,16 @@ fn generate_inject_function(json: serde_json::Value, type_name: &str) -> Vec<pro
                 let global_inst_map = format_ident!("CONSUMER_INST_{}", type_name.to_uppercase());
                 let setter_ref = format_ident!("set_{}_ref", injected_type_name);
                 let q = quote! {
-                    fn #inject_fn(svc: &Box<dyn Any + Send + Sync>, sreg: ServiceRegistration) {
+                    fn #inject_fn(svc: &Box<dyn Any + Send + Sync>, sreg: &ServiceRegistration) {
                         if let Some(sr) = svc.downcast_ref::<#itn>() {
                             for ctor in #global_ctor_map.lock().unwrap().iter() {
                                 let mut c = ctor();
-                                c.#setter_ref(&sreg);
+                                c.#setter_ref(sreg);
 
                                 #act_call(sr);
 
                                 // Keep the consumer instance in the global map
-                                let regs = vec![sreg];
+                                let regs = vec![sreg.clone()];
                                 #global_inst_map.lock().unwrap().insert(
                                     ConsumerRegistration::new(),
                                     (c, regs));
@@ -592,7 +592,7 @@ fn generate_inject_consumers(consumer_types: &Vec<String>) -> proc_macro2::Token
     for ct in consumer_types {
         let inject_fn = format_ident!("inject_{}", ct);
         inject_calls.push(quote!{
-            #inject_fn(svc, *sreg);
+            #inject_fn(svc, &sreg);
         });
     }
 
