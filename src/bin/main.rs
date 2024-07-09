@@ -8,7 +8,8 @@ use std::thread;
 use roesti::tidal_service::TidalService;
 use roesti::consumer1::Consumer1;
 use roesti::consumer2::Consumer2;
-use roesti::service_registry::{ConsumerRegistration, ServiceReference, ServiceRegistration, REGD_SERVICES};
+use roesti::consumer3::Consumer3;
+use roesti::service_registry::{ConsumerRegistration, ServiceRegistration, REGD_SERVICES};
 
 use dynamic_services_derive::dynamic_services_main;
 

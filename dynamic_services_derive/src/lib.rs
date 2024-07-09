@@ -11,6 +11,7 @@ use serde_json;
 
 #[derive(Debug)]
 enum Action {
+    LifeTimes{names: Vec<String>},
     SetterInjectField{field: String, type_name: String},
     ActivatorFunct{func_name: String},
     DeactivatorFunct{func_name: String}
@@ -19,6 +20,9 @@ enum Action {
 impl Action {
     fn to_string(&self) -> String {
         match self {
+            Action::LifeTimes {names} => {
+                format!("{{\"op\":\"LifeTimes\", \"names\":{:?} }}", names)
+            },
             Action::SetterInjectField{field, type_name} => {
                 format!("{{\"op\":\"SetterInjectField\", \"field\":\"{}\", \"type\":\"{}\"}}", field, type_name)
             },
@@ -101,7 +105,6 @@ fn find_injected_fields(ast: DeriveInput)
         if !find_attribute(f, "inject") {
             continue;
         }
-        println!("To inject {:?}", f.ident.as_ref().unwrap());
 
         if let syn::Type::Path(ref_type) = &f.ty {
             let id = f.ident.as_ref().unwrap();
@@ -111,8 +114,28 @@ fn find_injected_fields(ast: DeriveInput)
         }
     }
 
+    actions.push(get_lifetimes(&ast.generics.params));
+
     Ok((ast.ident.to_string(), actions))
 }
+
+fn get_lifetimes(params: &syn::punctuated::Punctuated<syn::GenericParam, token::Comma>) -> Action {
+    let mut lifetimes = vec![];
+
+    for param in params.iter() {
+        match param {
+            | syn::GenericParam::Lifetime(lt)
+            => {
+                lifetimes.push(lt.lifetime.ident.to_string());
+            },
+            | _
+            => {}
+        }
+    }
+
+    Action::LifeTimes { names: lifetimes }
+}
+
 
 fn find_attribute(f: &syn::Field, _name: &str) -> bool {
     for a in &f.attrs {
@@ -128,7 +151,6 @@ fn find_attribute(f: &syn::Field, _name: &str) -> bool {
 fn get_type_name(ident: &syn::Ident, ref_type: &syn::TypePath) -> Option<Action> {
     for s in ref_type.path.segments.iter() {
         if s.ident.to_string() != "Option" {
-            println!("*** Not an Option: {:?}", s);
             return None;
         }
 
@@ -183,7 +205,6 @@ fn get_serviceref_typearg(ident: &syn::Ident, aba: &syn::AngleBracketedGenericAr
         if let GenericArgument::Type(t) = arg {
             if let Type::Path(tp) = t {
                 if let Some(tn) = tp.path.segments.first() {
-                    println!("$$$ found type name {}", tn.ident.to_string());
                     return Some(Action::SetterInjectField { field: ident.to_string(), type_name: tn.ident.to_string() });
                 }
             }
@@ -195,10 +216,7 @@ fn get_serviceref_typearg(ident: &syn::Ident, aba: &syn::AngleBracketedGenericAr
 
 // TODO can this be done as part of the dynamic_services attribute macro as its embedded in there
 #[proc_macro_attribute]
-pub fn activator(attr: TokenStream, item: TokenStream) -> TokenStream {
-    println!("activator attr: \"{}\"", attr.to_string());
-    println!("activator item: \"{}\"", item.to_string());
-
+pub fn activator(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let ast = syn::parse(item.clone()).unwrap();
     write_activator_fn(ast);
 
@@ -207,8 +225,6 @@ pub fn activator(attr: TokenStream, item: TokenStream) -> TokenStream {
 
 fn write_activator_fn(ast: ItemFn) {
     let cur_type = CUR_TYPE.lock().unwrap();
-    println!("Current type: {}", cur_type);
-    println!("activator fn: {:?}", ast.sig.ident);
 
     let filenm = format!("{}/target/_{}.acttmp", std::env::var("CARGO_MANIFEST_DIR").unwrap(), cur_type);
     let act = Action::ActivatorFunct{func_name: ast.sig.ident.to_string()};
@@ -218,10 +234,7 @@ fn write_activator_fn(ast: ItemFn) {
 
 // TODO can this be done as part of the dynamic_services attribute macro as its embedded in there
 #[proc_macro_attribute]
-pub fn deactivator(attr: TokenStream, item: TokenStream) -> TokenStream {
-    println!("deactivator attr: \"{}\"", attr.to_string());
-    println!("deactivator item: \"{}\"", item.to_string());
-
+pub fn deactivator(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let ast = syn::parse(item.clone()).unwrap();
     write_deactivator_fn(ast);
 
@@ -230,8 +243,6 @@ pub fn deactivator(attr: TokenStream, item: TokenStream) -> TokenStream {
 
 fn write_deactivator_fn(ast: ItemFn) {
     let cur_type = CUR_TYPE.lock().unwrap();
-    println!("Current type: {}", cur_type);
-    println!("deactivator fn: {:?}", ast.sig.ident);
 
     let filenm = format!("{}/target/_{}.deacttmp", std::env::var("CARGO_MANIFEST_DIR").unwrap(), cur_type);
     let act = Action::DeactivatorFunct{func_name: ast.sig.ident.to_string()};
@@ -262,7 +273,6 @@ pub fn dynamic_services(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let file = format!("{}/target/_{}.tmp", std::env::var("CARGO_MANIFEST_DIR").unwrap(), type_name);
     if Path::new(&file).exists() {
-        println!("Generating from {}", file);
         generate_class(&file, &type_name, &mut generated);
     }
 
@@ -270,31 +280,49 @@ pub fn dynamic_services(_attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 fn generate_class(file_path: &str, type_name: &str, generated: &mut proc_macro2::TokenStream) {
-    println!("*** Generate class from file {} for type name {}", file_path, type_name);
     let content = fs::read_to_string(file_path).unwrap();
     let json: serde_json::Value = serde_json::from_str(&content).unwrap();
 
+    let lifetimes = get_lifetimes_from_json(json.as_array().unwrap());
     for action in json.as_array().unwrap() {
-        generated.extend(generate_action(type_name, action));
+        generated.extend(generate_action(type_name, action, &lifetimes));
     }
 }
 
-fn generate_action(type_name: &str, action: &serde_json::Value) -> proc_macro2::TokenStream {
+fn get_lifetimes_from_json(actions: &[serde_json::Value]) -> Vec<String> {
+    let mut lifetimes = vec![];
+
+    for action in actions {
+        let op = action["op"].as_str().unwrap();
+        if op == "LifeTimes" {
+            if let Some(names) = action["names"].as_array() {
+                names.iter().for_each(|v| {
+                    if let Some(lt) = v.as_str() {
+                        lifetimes.push(lt.to_string());
+                    }
+                });
+            }
+        }
+    }
+    lifetimes
+}
+
+fn generate_action(type_name: &str, action: &serde_json::Value, lifetimes: &Vec<String>) -> proc_macro2::TokenStream {
+    let lifetimes_code = quote_fixed_lifetimes(lifetimes.len(), quote! { '_ });
+
     let op = action["op"].as_str().unwrap();
     match op {
         "SetterInjectField" => {
             let field = action["field"].as_str().unwrap();
             let injected_type_name = action["type"].as_str().unwrap();
 
-            println!("[{}] SetterInjectField {} {}", type_name, field, injected_type_name);
             let tn = format_ident!("{}", type_name);
             let set_ts_ref = format_ident!("set_{}_ref", injected_type_name);
             let itn = format_ident!("{}", injected_type_name);
             let injected_ref = format_ident!("{}", field);
             let invoke_svc = format_ident!("invoke_{}", field);
             let new_code = quote! {
-                // impl<'_ds> #tn<'_ds> {
-                impl #tn {
+                impl #tn #lifetimes_code {
                     pub fn #set_ts_ref(&mut self, sreg: &ServiceRegistration) {
                         println!("[{}] Setting {} to {:?}", #type_name, #field, sreg);
                         self.#injected_ref = Some(ServiceReference::from(sreg));
@@ -317,6 +345,9 @@ fn generate_action(type_name: &str, action: &serde_json::Value) -> proc_macro2::
                 }
             };
             return new_code;
+        },
+        "LifeTimes" => {
+            return quote!{};
         },
         _ => {
             panic!("Unknown action: {}", op);
@@ -369,11 +400,17 @@ pub fn dynamic_services_main(_attr: TokenStream, item: TokenStream) -> TokenStre
     generated.into()
 }
 
+fn quote_fixed_lifetimes(num: usize, lt: proc_macro2::TokenStream ) -> proc_macro2::TokenStream {
+    let lifetimes = vec![lt; num];
+    quote! { <#(#lifetimes),*> }
+}
+
 fn generate_consumer(path: PathBuf, file_name: &str) -> Option<(String, proc_macro2::TokenStream)> {
     if file_name.starts_with("_") && file_name.ends_with(".tmp") {
         let content = fs::read_to_string(path).unwrap();
-        println!("### [{}] Content: {}", file_name, content);
         let json: serde_json::Value = serde_json::from_str(&content).unwrap();
+        let lifetimes = get_lifetimes_from_json(json.as_array().unwrap());
+        let static_lifetimes = quote_fixed_lifetimes(lifetimes.len(), quote! { 'static });
 
         let type_name = &file_name[1..file_name.len()-4];
         let tn = format_ident!("{}", type_name);
@@ -384,10 +421,8 @@ fn generate_consumer(path: PathBuf, file_name: &str) -> Option<(String, proc_mac
         let inject_function = generate_inject_function(json, type_name);
 
         let tokens = quote!{
-            static #global_ctor_map: Lazy<Mutex<Vec<fn() -> #tn>>>
+            static #global_ctor_map: Lazy<Mutex<Vec<fn() -> #tn #static_lifetimes>>>
                 = Lazy::new(||Mutex::new(Vec::new()));
-            // static #global_ctor_map: Lazy<Mutex<Vec<fn() -> #tn<'static>>>>
-            //     = Lazy::new(||Mutex::new(Vec::new()));
             static #global_inst_map: Lazy<Mutex<HashMap<ConsumerRegistration, (#tn, Vec<ServiceRegistration>)>>>
                 = Lazy::new(||Mutex::new(HashMap::new()));
 
@@ -453,6 +488,9 @@ fn generate_inject_function(json: serde_json::Value, type_name: &str) -> Vec<pro
                 };
                 quotes.push(q);
             },
+            "LifeTimes" => {
+                // ignore
+            },
             _ => {
                 panic!("Unknown action: {}", op);
             }
@@ -466,7 +504,6 @@ fn generate_activator_call(type_name: &str) -> proc_macro2::TokenStream {
 
     let file = format!("{}/target/_{}.acttmp", std::env::var("CARGO_MANIFEST_DIR").unwrap(), type_name);
     if Path::new(&file).exists() {
-        println!("Generating from {}", file);
         generate_activator(&file, &mut new_code);
     }
 
@@ -499,7 +536,6 @@ fn generate_deactivator_call(type_name: &str) -> proc_macro2::TokenStream {
 
     let file = format!("{}/target/_{}.deacttmp", std::env::var("CARGO_MANIFEST_DIR").unwrap(), type_name);
     if Path::new(&file).exists() {
-        println!("Generating from {}", file);
         generate_deactivator(&file, &mut new_code);
     }
 
