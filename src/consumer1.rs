@@ -5,15 +5,15 @@ use std::fmt::Display;
 use dynamic_services_derive::dynamic_services;
 use dynamic_services_derive::DynamicServices;
 
-#[derive(DynamicServices, Debug, Default)]
+// #[derive(DynamicServices, Debug, Default)]
 pub struct Consumer1<'a> {
   blahh: u32,
-  #[inject]
+  // #[inject]
   tidal: Option<&'a TidalService>,
   tidal_ref: Option<ServiceReference<TidalService>>,
 }
 
-#[dynamic_services]
+// #[dynamic_services]
 impl Consumer1<'_> {
   pub fn default() -> Self {
     Consumer1 { blahh: 12, tidal: None, tidal_ref: None }

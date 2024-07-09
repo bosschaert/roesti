@@ -47,9 +47,6 @@ fn impl_dynamic_services(ast: syn::DeriveInput) -> TokenStream {
         Ok(t) => t,
         Err(err) => return TokenStream::from(err.to_compile_error())
     };
-    println!("actions: {:?}", actions);
-
-    // let name = ast.ident;
 
     let mut lines = vec![];
     lines.push("[".to_string());
@@ -66,47 +63,7 @@ fn impl_dynamic_services(ast: syn::DeriveInput) -> TokenStream {
     lines.push("]".to_string());
     write_actions_file(tn, lines);
 
-    let gen = quote!{};
-    /*
-    for (i, s) in &types {
-        let ti = format_ident!("{}", s);
-        let set_ts = format_ident!("set_{}", s);
-        let registry = format_ident!("SERVICES_{}", s);
-        let new_code = quote! {
-            impl<'_ds> #name<'_ds> {
-                pub fn #set_ts(&mut self, svc: &'_ds #ti) {
-                    self.#i = Some(svc);
-                }
-
-                pub fn new(svc: &'_ds #ti) -> Self {
-                    let mut ds = #name {
-                        #i: Some(svc),
-                        ..Default::default()
-                    };
-
-                    ds
-                }
-            }
-
-            pub static #registry: std::sync::Mutex<Vec<#ti>> = std::sync::Mutex::new(Vec::new());
-
-            // Add the register_service() method to the ServiceRegistry
-            impl crate::service_registry::ServiceRegistry {
-                pub fn register_service(&mut self, svc: #ti) {
-                    println!("Registering service: {:?}", svc);
-                    let mut vec = #registry.lock().unwrap();
-                    vec.push(svc);
-
-                    let myref = vec.last().unwrap();
-                    let cons = #name::new(myref);
-                    println!("Created consumer {:?} for {:?}", cons, myref);
-                }
-            }
-        };
-        gen.extend(new_code);
-    }
-    */
-    gen.into()
+    quote!{}.into()
 }
 
 fn write_actions_file(tn: String, lines: Vec<String>) {
@@ -170,7 +127,6 @@ fn find_attribute(f: &syn::Field, _name: &str) -> bool {
 
 fn get_type_name(ident: &syn::Ident, ref_type: &syn::TypePath) -> Option<Action> {
     for s in ref_type.path.segments.iter() {
-        println!("*** Try this: {:?}", s);
         if s.ident.to_string() != "Option" {
             println!("*** Not an Option: {:?}", s);
             return None;
@@ -188,25 +144,17 @@ fn get_type_name(ident: &syn::Ident, ref_type: &syn::TypePath) -> Option<Action>
 fn get_option_args(ident: &syn::Ident, aba: &syn::AngleBracketedGenericArguments) -> Option<Action> {
     for a in aba.args.iter() {
         if let GenericArgument::Type(t) = a {
-            return get_type(ident, t);
+            return get_servicereference_type(ident, t);
         }
     }
     None
 }
 
-fn get_type(ident: &syn::Ident, t: &syn::Type) -> Option<Action> {
-    if let Type::Reference(r) = t {
-        return get_reference(ident, r);
+fn get_servicereference_type(ident: &syn::Ident, t: &syn::Type) -> Option<Action> {
+    if let Type::Path(p) = t {
+        return get_from_typepath(ident, p);
     }
     None
-}
-
-fn get_reference(ident: &syn::Ident, r: &syn::TypeReference) -> Option<Action> {
-    return if let Type::Path(p) = &*r.elem {
-        get_from_typepath(ident, p)
-    } else {
-        None
-    }
 }
 
 fn get_from_typepath(ident: &syn::Ident, tp: &syn::TypePath) -> Option<Action> {
@@ -214,13 +162,36 @@ fn get_from_typepath(ident: &syn::Ident, tp: &syn::TypePath) -> Option<Action> {
 }
 
 fn get_from_pathsegment(ident: &syn::Ident, segs: &syn::punctuated::Punctuated<syn::PathSegment, token::PathSep>) -> Option<Action> {
-    return if let Some(ps) = segs.first() {
-        println!("*** Found: {}", ps.ident);
-        Some(Action::SetterInjectField { field: ident.to_string(), type_name: ps.ident.to_string() })
-    } else {
-        None
+    if let Some(ps) = segs.first() {
+        if ps.ident.to_string() == "ServiceReference" {
+            return get_from_serviceref(ident, &ps.arguments);
+        }
     }
+    None
 }
+
+fn get_from_serviceref(ident: &syn::Ident, arguments: &PathArguments) -> Option<Action> {
+    return match &arguments {
+        | PathArguments::AngleBracketed(aba)
+        => get_serviceref_typearg(ident, aba),
+        | _ => None
+    };
+}
+
+fn get_serviceref_typearg(ident: &syn::Ident, aba: &syn::AngleBracketedGenericArguments) -> Option<Action> {
+    if let Some(arg) = aba.args.first() {
+        if let GenericArgument::Type(t) = arg {
+            if let Type::Path(tp) = t {
+                if let Some(tn) = tp.path.segments.first() {
+                    println!("$$$ found type name {}", tn.ident.to_string());
+                    return Some(Action::SetterInjectField { field: ident.to_string(), type_name: tn.ident.to_string() });
+                }
+            }
+        }
+    }
+    None
+}
+
 
 // TODO can this be done as part of the dynamic_services attribute macro as its embedded in there
 #[proc_macro_attribute]
@@ -274,7 +245,6 @@ static CUR_TYPE: Lazy<Mutex<String>> = Lazy::new(||Mutex::new(String::new()));
 #[proc_macro_attribute]
 pub fn dynamic_services(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let toks: Result<syn::ItemImpl> = syn::parse(item.clone().into());
-    println!("parsed {:?}", toks);
     let tokens = toks.unwrap();
     let ty = tokens.self_ty;
     let x = if let Type::Path(tp) = ty.as_ref() {
@@ -283,7 +253,6 @@ pub fn dynamic_services(_attr: TokenStream, item: TokenStream) -> TokenStream {
         panic!("Not a path");
     };
 
-    println!("*** ident {}", x.ident);
     let type_name = x.ident.to_string();
 
     // set current type to type_name;
@@ -319,20 +288,13 @@ fn generate_action(type_name: &str, action: &serde_json::Value) -> proc_macro2::
 
             println!("[{}] SetterInjectField {} {}", type_name, field, injected_type_name);
             let tn = format_ident!("{}", type_name);
-            let set_ts = format_ident!("set_{}", injected_type_name);
             let set_ts_ref = format_ident!("set_{}_ref", injected_type_name);
             let itn = format_ident!("{}", injected_type_name);
-            let injected = format_ident!("{}", field);
-            let injected_ref = format_ident!("{}_ref", field);
+            let injected_ref = format_ident!("{}", field);
             let invoke_svc = format_ident!("invoke_{}", field);
             let new_code = quote! {
-                impl<'_ds> #tn<'_ds> {
-                    // TODO delete
-                    pub fn #set_ts(&mut self, svc: &'_ds #itn) {
-                        println!("[{}] Setting {} to {:?}", #type_name, #field, svc);
-                        self.#injected = Some(svc);
-                    }
-
+                // impl<'_ds> #tn<'_ds> {
+                impl #tn {
                     pub fn #set_ts_ref(&mut self, sreg: &ServiceRegistration) {
                         println!("[{}] Setting {} to {:?}", #type_name, #field, sreg);
                         self.#injected_ref = Some(ServiceReference::from(sreg));
@@ -422,8 +384,10 @@ fn generate_consumer(path: PathBuf, file_name: &str) -> Option<(String, proc_mac
         let inject_function = generate_inject_function(json, type_name);
 
         let tokens = quote!{
-            static #global_ctor_map: Lazy<Mutex<Vec<fn() -> #tn<'static>>>>
+            static #global_ctor_map: Lazy<Mutex<Vec<fn() -> #tn>>>
                 = Lazy::new(||Mutex::new(Vec::new()));
+            // static #global_ctor_map: Lazy<Mutex<Vec<fn() -> #tn<'static>>>>
+            //     = Lazy::new(||Mutex::new(Vec::new()));
             static #global_inst_map: Lazy<Mutex<HashMap<ConsumerRegistration, (#tn, Vec<ServiceRegistration>)>>>
                 = Lazy::new(||Mutex::new(HashMap::new()));
 
