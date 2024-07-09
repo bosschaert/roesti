@@ -323,7 +323,7 @@ fn generate_action(type_name: &str, action: &serde_json::Value, lifetimes: &Vec<
             let invoke_svc = format_ident!("invoke_{}", field);
             let new_code = quote! {
                 impl #tn #lifetimes_code {
-                    pub fn #set_ts_ref(&mut self, sreg: &ServiceRegistration) {
+                    pub fn #set_ts_ref(&mut self, sreg: &crate::service_registry::ServiceRegistration) {
                         println!("[{}] Setting {} to {:?}", #type_name, #field, sreg);
                         self.#injected_ref = Some(ServiceReference::from(sreg));
                     }
@@ -334,9 +334,9 @@ fn generate_action(type_name: &str, action: &serde_json::Value, lifetimes: &Vec<
                     }
 
                     fn #invoke_svc(&self, cb: impl Fn (&#itn)) {
-                        let sr = REGD_SERVICES.read().unwrap();
+                        let sr = crate::service_registry::REGD_SERVICES.read().unwrap();
                         let sref = &self.#injected_ref.as_ref().unwrap();
-                        let sreg = ServiceRegistration::from(sref);
+                        let sreg = crate::service_registry::ServiceRegistration::from(sref);
                         let svc = sr.get(&sreg).unwrap();
                         if let Some(sr) = svc.downcast_ref::<#itn>() {
                             cb(sr);
@@ -361,19 +361,19 @@ pub fn dynamic_services_main(_attr: TokenStream, item: TokenStream) -> TokenStre
     let mut generated: proc_macro2::TokenStream = item.into();
 
     let new_code = quote! {
-        fn register_service(svc: Box<dyn Any + Send + Sync>) -> ServiceRegistration {
+        fn register_service(svc: Box<dyn ::std::any::Any + Send + Sync>) -> ::roesti::service_registry::ServiceRegistration {
             register_consumers();
 
-            let sreg = ServiceRegistration::new();
+            let sreg = ::roesti::service_registry::ServiceRegistration::new();
             println!("Registering service: {:?} - {:?}", svc, sreg);
-            REGD_SERVICES.write().unwrap().insert(sreg, svc);
+            ::roesti::service_registry::REGD_SERVICES.write().unwrap().insert(sreg, svc);
 
             inject_consumers();
             sreg
         }
 
-        fn unregister_service(sr: ServiceRegistration) {
-            if REGD_SERVICES.write().unwrap().remove(&sr).is_some() {
+        fn unregister_service(sr: ::roesti::service_registry::ServiceRegistration) {
+            if ::roesti::service_registry::REGD_SERVICES.write().unwrap().remove(&sr).is_some() {
                 println!("Service unregistered: {:?}", sr);
                 uninject_consumers(&sr);
             }
@@ -421,10 +421,12 @@ fn generate_consumer(path: PathBuf, file_name: &str) -> Option<(String, proc_mac
         let inject_function = generate_inject_function(json, type_name);
 
         let tokens = quote!{
-            static #global_ctor_map: Lazy<Mutex<Vec<fn() -> #tn #static_lifetimes>>>
-                = Lazy::new(||Mutex::new(Vec::new()));
-            static #global_inst_map: Lazy<Mutex<HashMap<ConsumerRegistration, (#tn, Vec<ServiceRegistration>)>>>
-                = Lazy::new(||Mutex::new(HashMap::new()));
+            static #global_ctor_map: ::once_cell::sync::Lazy<std::sync::Mutex<Vec<fn() -> #tn #static_lifetimes>>>
+                = ::once_cell::sync::Lazy::new(||std::sync::Mutex::new(Vec::new()));
+            static #global_inst_map: ::once_cell::sync::Lazy<std::sync::Mutex<
+                    std::collections::HashMap<::roesti::service_registry::ConsumerRegistration,
+                        (#tn, Vec<::roesti::service_registry::ServiceRegistration>)>>>
+                = ::once_cell::sync::Lazy::new(||std::sync::Mutex::new(std::collections::HashMap::new()));
 
             fn #register_fn() {
                 println!("Registering Consumer: {}", #type_name);
@@ -456,7 +458,7 @@ fn generate_inject_function(json: serde_json::Value, type_name: &str) -> Vec<pro
                 let global_inst_map = format_ident!("CONSUMER_INST_{}", type_name.to_uppercase());
                 let setter_ref = format_ident!("set_{}_ref", injected_type_name);
                 let q = quote! {
-                    fn #inject_fn(svc: &Box<dyn Any + Send + Sync>, sreg: &ServiceRegistration) {
+                    fn #inject_fn(svc: &Box<dyn ::std::any::Any + Send + Sync>, sreg: &::roesti::service_registry::ServiceRegistration) {
                         if let Some(sr) = svc.downcast_ref::<#itn>() {
                             for ctor in #global_ctor_map.lock().unwrap().iter() {
                                 let mut c = ctor();
@@ -467,13 +469,12 @@ fn generate_inject_function(json: serde_json::Value, type_name: &str) -> Vec<pro
                                 // Keep the consumer instance in the global map
                                 let regs = vec![sreg.clone()];
                                 #global_inst_map.lock().unwrap().insert(
-                                    ConsumerRegistration::new(),
-                                    (c, regs));
+                                    ::roesti::service_registry::ConsumerRegistration::new(), (c, regs));
                             }
                         }
                     }
 
-                    fn #uninject_fn(sreg: &ServiceRegistration) {
+                    fn #uninject_fn(sreg: &::roesti::service_registry::ServiceRegistration) {
                         let mut deleted = vec![];
                         let mut global = #global_inst_map.lock().unwrap();
                         global.iter_mut()
@@ -574,9 +575,10 @@ fn generate_register_consumers(consumer_types: &Vec<String>) -> proc_macro2::Tok
     }
 
     let new_code = quote! {
-        static CONSUMERS_INITIALIZED: AtomicBool = AtomicBool::new(false);
+        static CONSUMERS_INITIALIZED: ::std::sync::atomic::AtomicBool =
+            ::std::sync::atomic::AtomicBool::new(false);
         fn register_consumers() {
-            let initialized = CONSUMERS_INITIALIZED.swap(true, Ordering::SeqCst);
+            let initialized = CONSUMERS_INITIALIZED.swap(true, ::std::sync::atomic::Ordering::SeqCst);
             if initialized {
                 return;
             }
@@ -599,7 +601,7 @@ fn generate_inject_consumers(consumer_types: &Vec<String>) -> proc_macro2::Token
     let new_code = quote! {
         // TODO only inject the relevant consumers and don't re-inject
         fn inject_consumers() {
-            for (sreg, svc) in REGD_SERVICES.read().unwrap().iter() {
+            for (sreg, svc) in ::roesti::service_registry::REGD_SERVICES.read().unwrap().iter() {
                 #(#inject_calls)*
             }
         }
@@ -622,7 +624,7 @@ fn generate_uninject_consumers(consumer_types: &Vec<String>) -> proc_macro2::Tok
     }
 
     quote! {
-        fn uninject_consumers(sr: &ServiceRegistration) {
+        fn uninject_consumers(sr: &::roesti::service_registry::ServiceRegistration) {
             #(#uninject_calls)*
         }
     }

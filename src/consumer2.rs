@@ -1,6 +1,6 @@
 use crate::tidal_service::TidalService;
 // TODO fully qualify from macro
-use crate::service_registry::{ServiceReference, ServiceRegistration, REGD_SERVICES};
+use crate::service_registry::ServiceReference;
 use dynamic_services_derive::DynamicServices;
 use dynamic_services_derive::{activator, deactivator, dynamic_services};
 

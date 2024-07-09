@@ -1,5 +1,5 @@
 use crate::tidal_service::TidalService;
-use crate::service_registry::{ServiceReference, ServiceRegistration, REGD_SERVICES};
+use crate::service_registry::ServiceReference;
 use dynamic_services_derive::DynamicServices;
 use dynamic_services_derive::{activator, dynamic_services};
 
