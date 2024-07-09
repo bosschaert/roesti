@@ -42,7 +42,7 @@ impl ServiceRegistration {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ServiceReference<T> {
     id: Uuid,
-    _phantom: std::marker::PhantomData<T>,
+    _phantom: PhantomData<T>,
 }
 
 impl <T>ServiceReference<T> {
