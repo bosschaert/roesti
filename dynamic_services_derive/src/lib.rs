@@ -1,11 +1,9 @@
-use once_cell::sync::Lazy;
-use std::sync::Mutex;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
-use syn::{self, token, Data, DataEnum, DataStruct, DataUnion, DeriveInput, Error, Fields, GenericArgument, ItemFn, PathArguments, Result, Type};
+use syn::{self, token, Data, DataEnum, DataStruct, DataUnion, DeriveInput, Error, Fields, GenericArgument, PathArguments, Result, Type};
 use proc_macro2::Span;
 use serde_json;
 
@@ -13,7 +11,7 @@ use serde_json;
 enum Action {
     LifeTimes{names: Vec<String>},
     SetterInjectField{field: String, type_name: String},
-    ActivatorFunct{func_name: String},
+    ActivatorFunct{func_name: String, arguments: Vec<String>},
     DeactivatorFunct{func_name: String}
 }
 
@@ -26,8 +24,8 @@ impl Action {
             Action::SetterInjectField{field, type_name} => {
                 format!("{{\"op\":\"SetterInjectField\", \"field\":\"{}\", \"type\":\"{}\"}}", field, type_name)
             },
-            Action::ActivatorFunct{func_name} => {
-                format!("{{\"op\":\"ActivatorFunct\", \"method\":\"{}\"}}", func_name)
+            Action::ActivatorFunct{func_name, arguments} => {
+                format!("{{\"op\":\"ActivatorFunct\", \"method\":\"{}\", \"args\":{:?} }}", func_name, arguments)
             },
             Action::DeactivatorFunct{func_name} => {
                 format!("{{\"op\":\"DeactivatorFunct\", \"method\":\"{}\"}}", func_name)
@@ -213,61 +211,40 @@ fn get_serviceref_typearg(ident: &syn::Ident, aba: &syn::AngleBracketedGenericAr
     None
 }
 
-
-// TODO can this be done as part of the dynamic_services attribute macro as its embedded in there
+// TODO do we still need to declare this, as it's handled by the top-level macro?
 #[proc_macro_attribute]
 pub fn activator(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let ast = syn::parse(item.clone()).unwrap();
-    write_activator_fn(ast);
-
     item
 }
 
-fn write_activator_fn(ast: ItemFn) {
-    let cur_type = CUR_TYPE.lock().unwrap();
-
-    let filenm = format!("{}/target/_{}.acttmp", std::env::var("CARGO_MANIFEST_DIR").unwrap(), cur_type);
-    let act = Action::ActivatorFunct{func_name: ast.sig.ident.to_string()};
-    let content = format!("[{}]", act.to_string());
-    std::fs::write(filenm, content).unwrap();
-}
-
-// TODO can this be done as part of the dynamic_services attribute macro as its embedded in there
+// TODO do we still need to declare this, as it's handled by the top-level macro?
 #[proc_macro_attribute]
 pub fn deactivator(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let ast = syn::parse(item.clone()).unwrap();
-    write_deactivator_fn(ast);
-
     item
 }
-
-fn write_deactivator_fn(ast: ItemFn) {
-    let cur_type = CUR_TYPE.lock().unwrap();
-
-    let filenm = format!("{}/target/_{}.deacttmp", std::env::var("CARGO_MANIFEST_DIR").unwrap(), cur_type);
-    let act = Action::DeactivatorFunct{func_name: ast.sig.ident.to_string()};
-    let content = format!("[{}]", act.to_string());
-    std::fs::write(filenm, content).unwrap();
-}
-
-static CUR_TYPE: Lazy<Mutex<String>> = Lazy::new(||Mutex::new(String::new()));
 
 // For impl classes
 #[proc_macro_attribute]
 pub fn dynamic_services(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let toks: Result<syn::ItemImpl> = syn::parse(item.clone().into());
+
     let tokens = toks.unwrap();
-    let ty = tokens.self_ty;
-    let x = if let Type::Path(tp) = ty.as_ref() {
+
+    let impl_type_box = &tokens.self_ty;
+    let impl_type = if let Type::Path(tp) = impl_type_box.as_ref() {
         tp.path.segments.first().unwrap()
     } else {
         panic!("Not a path");
     };
 
-    let type_name = x.ident.to_string();
+    let type_name = impl_type.ident.to_string();
 
-    // set current type to type_name;
-    *CUR_TYPE.lock().unwrap() = type_name.clone();
+    if let Some(activator) = find_activator(&tokens) {
+        write_action(activator, &type_name, "acttmp");
+    }
+    if let Some(deactivator) = find_deactivator(&tokens) {
+        write_action(deactivator, &type_name, "deacttmp");
+    }
 
     let mut generated: proc_macro2::TokenStream = item.into();
 
@@ -278,6 +255,79 @@ pub fn dynamic_services(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
     generated.into()
 }
+
+fn write_action(action: Action, curtype: &str, suffix: &str) {
+    let filenm = format!("{}/target/_{}.{}", std::env::var("CARGO_MANIFEST_DIR").unwrap(), curtype, suffix);
+    let content = format!("[{}]", action.to_string());
+    std::fs::write(filenm, content).unwrap();
+}
+
+
+fn find_lifecycle_callback(ls: &str, itimpl: &syn::ItemImpl) -> Option<(String, Vec<String>)> {
+    for item in itimpl.items.iter() {
+        if let syn::ImplItem::Fn(f) = item {
+            for a in f.attrs.iter() {
+                if let Some(an) = a.meta.path().get_ident() {
+                    if an.to_string() == ls {
+                        let inputs = get_inputs_from_fn(&f.sig.inputs);
+                        return Some((f.sig.ident.to_string(), inputs));
+                    }
+                }
+            }
+        }
+    };
+
+    None
+}
+
+fn find_activator(itimpl: &syn::ItemImpl) -> Option<Action> {
+    let act = find_lifecycle_callback("activator", itimpl);
+    if let Some((name, args)) = act {
+        return Some(Action::ActivatorFunct { func_name: name, arguments: args });
+    }
+    None
+}
+
+fn find_deactivator(itimpl: &syn::ItemImpl) -> Option<Action> {
+    let deact = find_lifecycle_callback("deactivator", itimpl);
+    if let Some((name, _)) = deact {
+        return Some(Action::DeactivatorFunct { func_name: name });
+    }
+    return None;
+}
+
+fn get_inputs_from_fn(inputs: &syn::punctuated::Punctuated<syn::FnArg, token::Comma>) -> Vec<String> {
+    let mut counter = 0;
+    let mut args = vec![];
+
+    for input in inputs {
+        match input {
+            | syn::FnArg::Receiver(_r)
+            => {
+                if counter > 0 {
+                    panic!("Only the first argument should be a Self reference");
+                }
+            },
+            | syn::FnArg::Typed(arg)
+            => {
+                if counter == 0 {
+                    panic!("The first argument should be a Self reference");
+                }
+                if let syn::Type::Reference(tr) = arg.ty.as_ref() {
+                    if let syn::Type::Path(tp) = tr.elem.as_ref() {
+                        if let Some(tn) = tp.path.segments.first() {
+                            args.push(format!("&{}", tn.ident.to_string()));
+                        }
+                    }
+                }
+            }
+        }
+        counter += 1;
+    }
+
+    args
+}
+
 
 fn generate_class(file_path: &str, type_name: &str, generated: &mut proc_macro2::TokenStream) {
     let content = fs::read_to_string(file_path).unwrap();
@@ -361,6 +411,7 @@ pub fn dynamic_services_main(_attr: TokenStream, item: TokenStream) -> TokenStre
     let mut generated: proc_macro2::TokenStream = item.into();
 
     let new_code = quote! {
+        // TODO support service properties
         fn register_service(svc: Box<dyn ::std::any::Any + Send + Sync>) -> ::roesti::service_registry::ServiceRegistration {
             register_consumers();
 
