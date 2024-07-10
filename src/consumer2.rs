@@ -1,5 +1,4 @@
 use crate::tidal_service::TidalService;
-// TODO fully qualify from macro
 use crate::service_registry::ServiceReference;
 use dynamic_services_derive::DynamicServices;
 use dynamic_services_derive::{activator, deactivator, dynamic_services};
@@ -10,7 +9,7 @@ pub struct Consumer2 {
     tidal: Option<ServiceReference<TidalService>>,
 }
 
-#[dynamic_services]
+#[dynamic_services(path=roesti::consumer2)]
 impl Consumer2 {
     // Called after the constructor has been called.
     // TODO pass in reference to the services requested

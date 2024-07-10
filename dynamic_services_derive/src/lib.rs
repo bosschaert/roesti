@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::parse::Parser;
-use syn::{self, token, Data, DataEnum, DataStruct, DataUnion, DeriveInput, Error, Fields, GenericArgument, PathArguments, Result, Type};
+use syn::{self, parse_str, token, Data, DataEnum, DataStruct, DataUnion, DeriveInput, Error, Fields, GenericArgument, PathArguments, Result, Type};
 use proc_macro2::Span;
 use serde_json;
 
@@ -515,8 +515,9 @@ fn generate_consumer(path: PathBuf, file_name: &str) -> Option<(String, String, 
             type_name.to_string()
         };
 
-        // let tn = format_ident!("{}::{}", path, type_name);
-        let tn = format_ident!("{}", type_name);
+        let fqn = format!("{}::{}", path, type_name);
+        let ps: syn::ExprPath = parse_str(&fqn).unwrap();
+
         let register_fn = format_ident!("register_{}", type_name);
         let global_ctor_map = format_ident!("CONSUMER_CTOR_{}", type_name.to_uppercase());
         let global_inst_map = format_ident!("CONSUMER_INST_{}", type_name.to_uppercase());
@@ -524,16 +525,16 @@ fn generate_consumer(path: PathBuf, file_name: &str) -> Option<(String, String, 
         let inject_function = generate_inject_function(json, type_name);
 
         let tokens = quote!{
-            static #global_ctor_map: ::once_cell::sync::Lazy<std::sync::Mutex<Vec<fn() -> #tn #static_lifetimes>>>
+            static #global_ctor_map: ::once_cell::sync::Lazy<std::sync::Mutex<Vec<fn() -> #ps #static_lifetimes>>>
                 = ::once_cell::sync::Lazy::new(||std::sync::Mutex::new(Vec::new()));
             static #global_inst_map: ::once_cell::sync::Lazy<std::sync::Mutex<
                     std::collections::HashMap<::roesti::service_registry::ConsumerRegistration,
-                        (#tn, Vec<::roesti::service_registry::ServiceRegistration>)>>>
+                        (#ps, Vec<::roesti::service_registry::ServiceRegistration>)>>>
                 = ::once_cell::sync::Lazy::new(||std::sync::Mutex::new(std::collections::HashMap::new()));
 
             fn #register_fn() {
                 println!("Registering Consumer: {}", #type_name);
-                #global_ctor_map.lock().unwrap().push(|| #tn::default());
+                #global_ctor_map.lock().unwrap().push(|| #ps::default());
             }
 
             #(#inject_function)*
