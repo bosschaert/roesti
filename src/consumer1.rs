@@ -14,7 +14,7 @@ pub struct Consumer1<'a> {
   tidal_ref: Option<ServiceReference<TidalService>>,
 }
 
-#[dynamic_services]
+#[dynamic_services(path=roesti::consumer1)]
 impl Consumer1<'_> {
   pub fn default() -> Self {
     Consumer1 { blahh: 12, _tidal: None, tidal_ref: None }

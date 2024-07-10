@@ -17,5 +17,7 @@ fn main() {
     thread::sleep(Duration::from_secs(1));
     unregister_service(sreg);
 
+    println!("Module path: {}", module_path!());
+    println!("File: {}", file!());
     // TODO add a different service
 }

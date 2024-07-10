@@ -1,8 +1,10 @@
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
+use syn::parse::Parser;
 use syn::{self, token, Data, DataEnum, DataStruct, DataUnion, DeriveInput, Error, Fields, GenericArgument, PathArguments, Result, Type};
 use proc_macro2::Span;
 use serde_json;
@@ -12,7 +14,8 @@ enum Action {
     LifeTimes{names: Vec<String>},
     SetterInjectField{field: String, type_name: String},
     ActivatorFunct{func_name: String, arguments: Vec<String>},
-    DeactivatorFunct{func_name: String}
+    DeactivatorFunct{func_name: String},
+    StructPath{path: String}
 }
 
 impl Action {
@@ -29,6 +32,9 @@ impl Action {
             },
             Action::DeactivatorFunct{func_name} => {
                 format!("{{\"op\":\"DeactivatorFunct\", \"method\":\"{}\"}}", func_name)
+            }
+            Action::StructPath { path } => {
+                format!("{{\"op\":\"StructPath\", \"path\":\"{}\"}}", path)
             }
         }
     }
@@ -225,9 +231,8 @@ pub fn deactivator(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
 // For impl classes
 #[proc_macro_attribute]
-pub fn dynamic_services(_attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn dynamic_services(attrs: TokenStream, item: TokenStream) -> TokenStream {
     let toks: Result<syn::ItemImpl> = syn::parse(item.clone().into());
-
     let tokens = toks.unwrap();
 
     let impl_type_box = &tokens.self_ty;
@@ -245,6 +250,9 @@ pub fn dynamic_services(_attr: TokenStream, item: TokenStream) -> TokenStream {
     if let Some(deactivator) = find_deactivator(&tokens) {
         write_action(deactivator, &type_name, "deacttmp");
     }
+    if let Some(path) = get_struct_path(attrs) {
+        write_action(path, &type_name, "pathtmp");
+    }
 
     let mut generated: proc_macro2::TokenStream = item.into();
 
@@ -256,12 +264,39 @@ pub fn dynamic_services(_attr: TokenStream, item: TokenStream) -> TokenStream {
     generated.into()
 }
 
+fn get_struct_path(attrs: TokenStream) -> Option<Action> {
+    let args_parsed = syn::punctuated::Punctuated::<syn::ExprAssign, syn::Token![,]>::parse_terminated.parse(attrs).unwrap();
+    for arg in args_parsed.iter() {
+        if let syn::Expr::Path(key) = arg.left.as_ref() {
+            if let Some(ps) = key.path.segments.first() {
+                if ps.ident.to_string() == "path" {
+                    if let syn::Expr::Path(p) = arg.right.as_ref() {
+                        return get_full_path(p);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+fn get_full_path(path: &syn::ExprPath) -> Option<Action> {
+    let mut strings = vec![];
+
+    for el in path.path.segments.iter() {
+        strings.push(el.ident.to_string());
+    }
+    if !strings.is_empty() {
+        return Some(Action::StructPath { path: strings.join("::") });
+    }
+    None
+}
+
 fn write_action(action: Action, curtype: &str, suffix: &str) {
     let filenm = format!("{}/target/_{}.{}", std::env::var("CARGO_MANIFEST_DIR").unwrap(), curtype, suffix);
     let content = format!("[{}]", action.to_string());
     std::fs::write(filenm, content).unwrap();
 }
-
 
 fn find_lifecycle_callback(ls: &str, itimpl: &syn::ItemImpl) -> Option<(String, Vec<String>)> {
     for item in itimpl.items.iter() {
@@ -432,13 +467,13 @@ pub fn dynamic_services_main(_attr: TokenStream, item: TokenStream) -> TokenStre
     };
     generated.extend(new_code);
 
-    let mut consumer_types = vec![];
+    let mut consumer_types = HashMap::new();
     let dir = format!("{}/target", std::env::var("CARGO_MANIFEST_DIR").unwrap());
     let paths = fs::read_dir(dir).unwrap();
     for path in paths {
         if let Ok(p) = path {
-            if let Some((name, tokens)) = generate_consumer(p.path(), p.file_name().to_str().unwrap()) {
-                consumer_types.push(name);
+            if let Some((name, path, tokens)) = generate_consumer(p.path(), p.file_name().to_str().unwrap()) {
+                consumer_types.insert(name, path);
                 generated.extend(tokens);
             }
         }
@@ -456,14 +491,31 @@ fn quote_fixed_lifetimes(num: usize, lt: proc_macro2::TokenStream ) -> proc_macr
     quote! { <#(#lifetimes),*> }
 }
 
-fn generate_consumer(path: PathBuf, file_name: &str) -> Option<(String, proc_macro2::TokenStream)> {
+fn generate_consumer(path: PathBuf, file_name: &str) -> Option<(String, String, proc_macro2::TokenStream)> {
     if file_name.starts_with("_") && file_name.ends_with(".tmp") {
-        let content = fs::read_to_string(path).unwrap();
+        let content = fs::read_to_string(&path).unwrap();
         let json: serde_json::Value = serde_json::from_str(&content).unwrap();
         let lifetimes = get_lifetimes_from_json(json.as_array().unwrap());
         let static_lifetimes = quote_fixed_lifetimes(lifetimes.len(), quote! { 'static });
 
         let type_name = &file_name[1..file_name.len()-4];
+
+        let mut path_file = path.clone();
+        path_file.pop();
+        path_file.push(format!("_{}.pathtmp", type_name));
+        let path = if path_file.exists() {
+            let content = fs::read_to_string(path_file).unwrap();
+            let json: serde_json::Value = serde_json::from_str(&content).unwrap();
+            if let Some(p) = get_path_from_json(json.as_array().unwrap()) {
+                p
+            } else {
+                type_name.to_string()
+            }
+        } else {
+            type_name.to_string()
+        };
+
+        // let tn = format_ident!("{}::{}", path, type_name);
         let tn = format_ident!("{}", type_name);
         let register_fn = format_ident!("register_{}", type_name);
         let global_ctor_map = format_ident!("CONSUMER_CTOR_{}", type_name.to_uppercase());
@@ -486,7 +538,17 @@ fn generate_consumer(path: PathBuf, file_name: &str) -> Option<(String, proc_mac
 
             #(#inject_function)*
         };
-        return Some((type_name.to_string(), tokens));
+        return Some((type_name.to_string(), path, tokens));
+    }
+    None
+}
+
+fn get_path_from_json(actions: &[serde_json::Value]) -> Option<String> {
+    for action in actions {
+        let op = action["op"].as_str().unwrap();
+        if op == "StructPath" {
+            return Some(action["path"].as_str().unwrap().to_string());
+        }
     }
     None
 }
@@ -616,9 +678,9 @@ fn generate_deactivator(file: &str, new_code: &mut proc_macro2::TokenStream) {
     }
 }
 
-fn generate_register_consumers(consumer_types: &Vec<String>) -> proc_macro2::TokenStream {
+fn generate_register_consumers(consumer_types: &HashMap<String, String>) -> proc_macro2::TokenStream {
     let mut register_calls = vec![];
-    for ct in consumer_types {
+    for (ct, _) in consumer_types {
         let register_fn = format_ident!("register_{}", ct);
         register_calls.push(quote!{
             #register_fn();
@@ -640,9 +702,9 @@ fn generate_register_consumers(consumer_types: &Vec<String>) -> proc_macro2::Tok
     new_code
 }
 
-fn generate_inject_consumers(consumer_types: &Vec<String>) -> proc_macro2::TokenStream {
+fn generate_inject_consumers(consumer_types: &HashMap<String, String>) -> proc_macro2::TokenStream {
     let mut inject_calls = vec![];
-    for ct in consumer_types {
+    for (ct, _) in consumer_types {
         let inject_fn = format_ident!("inject_{}", ct);
         inject_calls.push(quote!{
             #inject_fn(svc, &sreg);
@@ -660,13 +722,13 @@ fn generate_inject_consumers(consumer_types: &Vec<String>) -> proc_macro2::Token
     new_code
 }
 
-fn generate_uninject_consumers(consumer_types: &Vec<String>) -> proc_macro2::TokenStream {
+fn generate_uninject_consumers(consumer_types: &HashMap<String, String>) -> proc_macro2::TokenStream {
     // All consumers have in their global map as a value the list in dependent service
     // references. Un-inject all consumers that have the service reference of the service
     // being unregistered.
 
     let mut uninject_calls = vec![];
-    for ct in consumer_types {
+    for (ct, _) in consumer_types {
         // let global_inst_map = format_ident!("CONSUMER_INST_{}", type_name.to_uppercase());
         let uninject_fn = format_ident!("uninject_{}", ct);
         uninject_calls.push(quote!{
