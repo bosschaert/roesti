@@ -211,15 +211,15 @@ fn get_serviceref_typearg(ident: &syn::Ident, aba: &syn::AngleBracketedGenericAr
     None
 }
 
-// TODO do we still need to declare this, as it's handled by the top-level macro?
 #[proc_macro_attribute]
 pub fn activator(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    // Nothing to do, as this is handled by the #dynamic_services macro
     item
 }
 
-// TODO do we still need to declare this, as it's handled by the top-level macro?
 #[proc_macro_attribute]
 pub fn deactivator(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    // Nothing to do, as this is handled by the #dynamic_services macro
     item
 }
 
