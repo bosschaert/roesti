@@ -446,13 +446,14 @@ pub fn dynamic_services_main(_attr: TokenStream, item: TokenStream) -> TokenStre
     let mut generated: proc_macro2::TokenStream = item.into();
 
     let new_code = quote! {
-        // TODO support service properties
-        fn register_service(svc: Box<dyn ::std::any::Any + Send + Sync>) -> ::roesti::service_registry::ServiceRegistration {
+        fn register_service(svc: Box<dyn ::std::any::Any + Send + Sync>,
+                props: std::collections::BTreeMap<String, String>)
+                -> ::roesti::service_registry::ServiceRegistration {
             register_consumers();
 
-            let sreg = ::roesti::service_registry::ServiceRegistration::new();
+            let sreg = ::roesti::service_registry::ServiceRegistration::new(props);
             println!("Registering service: {:?} - {:?}", svc, sreg);
-            ::roesti::service_registry::REGD_SERVICES.write().unwrap().insert(sreg, svc);
+            ::roesti::service_registry::REGD_SERVICES.write().unwrap().insert(sreg.clone(), svc);
 
             inject_consumers();
             sreg

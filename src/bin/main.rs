@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::time::Duration;
 use std::thread;
 use roesti::tidal_service::TidalService;
@@ -9,7 +10,12 @@ fn main() {
     let ts = TidalService{
         location: "A".to_string()
     };
-    let sreg = register_service(Box::new(ts));
+
+    let mut props = BTreeMap::new();
+    props.insert("foo".to_owned(), "bar".to_owned());
+    props.insert("hello".to_owned(), "123".to_owned());
+
+    let sreg = register_service(Box::new(ts), props);
 
     thread::sleep(Duration::from_secs(1));
     unregister_service(sreg);

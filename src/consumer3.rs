@@ -22,5 +22,8 @@ impl Consumer3<'_, '_> {
     #[activator]
     pub fn activate(&self, _tidal: &TidalService) {
         println!("Consumer 3 Activated: {:?}", self.tidal_ref_obj);
+        if let Some(sr) = &self.tidal_ref_obj {
+            println!("  properties: {:?}", sr.get_properties());
+        }
     }
 }
