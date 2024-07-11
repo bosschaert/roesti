@@ -5,7 +5,8 @@ use std::marker::PhantomData;
 use std::sync::RwLock;
 use uuid::Uuid;
 
-pub static REGD_SERVICES: Lazy<RwLock<HashMap<ServiceRegistration, Box<dyn Any + Send + Sync>>>>
+pub static REGD_SERVICES: Lazy<RwLock<HashMap<ServiceRegistration,
+        (Box<dyn Any + Send + Sync>, BTreeMap<String,String>)>>>
     = Lazy::new(||RwLock::new(HashMap::new()));
 
 pub struct ServiceRegistry {
@@ -23,21 +24,18 @@ impl ServiceRegistry {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ServiceRegistration {
     id: Uuid,
-    properties: BTreeMap<String, String>,
 }
 
 impl ServiceRegistration {
-    pub fn new(properties: BTreeMap<String, String>) -> ServiceRegistration {
+    pub fn new() -> ServiceRegistration {
         ServiceRegistration {
             id: Uuid::new_v4(),
-            properties,
         }
     }
 
     pub fn from<T>(sr: &ServiceReference<T>) -> ServiceRegistration {
         ServiceRegistration {
             id: sr.id,
-            properties: sr.properties.clone(),
         }
     }
 }
@@ -50,10 +48,10 @@ pub struct ServiceReference<T> {
 }
 
 impl <T>ServiceReference<T> {
-    pub fn from(sr: &ServiceRegistration) -> ServiceReference<T> {
+    pub fn from(sr: &ServiceRegistration, properties: BTreeMap<String, String>) -> ServiceReference<T> {
         ServiceReference {
             id: sr.id,
-            properties: sr.properties.clone(),
+            properties,
             _phantom: PhantomData,
         }
     }

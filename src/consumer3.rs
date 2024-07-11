@@ -1,7 +1,7 @@
 use crate::tidal_service::TidalService;
 use crate::service_registry::ServiceReference;
 use dynamic_services_derive::DynamicServices;
-use dynamic_services_derive::{activator, dynamic_services};
+use dynamic_services_derive::{activator, dynamic_services, update};
 
 #[derive(DynamicServices, Debug, Default)]
 pub struct Consumer3<'a, 'b> {
@@ -25,5 +25,10 @@ impl Consumer3<'_, '_> {
         if let Some(sr) = &self.tidal_ref_obj {
             println!("  properties: {:?}", sr.get_properties());
         }
+    }
+
+    #[update]
+    pub fn update(&self, props: std::collections::BTreeMap<String, String>) {
+        println!("Consumer 3 Updated: {:?}", props);
     }
 }
