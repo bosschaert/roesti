@@ -484,7 +484,8 @@ pub fn dynamic_services_main(_attr: TokenStream, item: TokenStream) -> TokenStre
         }
 
         fn update_service(sreg: &::roesti::service_registry::ServiceRegistration,
-                props: std::collections::BTreeMap<String, String>) {
+                mut props: std::collections::BTreeMap<String, String>) {
+            props.insert(".service_id".to_string(), sreg.id.to_string());
             let mut regd = ::roesti::service_registry::REGD_SERVICES.write().unwrap();
             if let Some((_, p)) = regd.get_mut(sreg) {
                 *p = props.clone();
