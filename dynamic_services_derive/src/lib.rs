@@ -618,7 +618,7 @@ fn generate_inject_function(json: serde_json::Value, type_name: &str) -> Vec<pro
                                 let mut c = ctor();
                                 c.#setter_ref(sreg, props);
 
-                                #act_call(sr);
+                                #act_call;
 
                                 // Keep the consumer instance in the global map
                                 let regs = vec![sreg.clone()];
@@ -646,7 +646,7 @@ fn generate_inject_function(json: serde_json::Value, type_name: &str) -> Vec<pro
                             .for_each(|(ci, (c, _))| {
                                 deleted.push(ci.clone());
                                 c.unset_all();
-                                #deact_call
+                                #deact_call;
                             });
                         deleted.iter().for_each(|ci| { global.remove(ci); });
                     }
@@ -686,7 +686,7 @@ fn generate_activator(file: &str, new_code: &mut proc_macro2::TokenStream) {
                 let func_name = action["method"].as_str().unwrap();
                 let activate_md = format_ident!("{}", func_name);
                 new_code.extend(quote! {
-                    c.#activate_md
+                    c.#activate_md(sr);
                 });
             },
             _ => {
