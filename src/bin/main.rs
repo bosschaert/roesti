@@ -27,13 +27,3 @@ fn main() {
 
     // TODO add a different service
 }
-
-// fn update_Consumer4(
-//     sreg: &::roesti::service_registry::ServiceRegistration,
-//     props: std::collections::BTreeMap<String, String>,) {
-//     let global = CONSUMER_INST_CONSUMER3.lock().unwrap();
-//     global.iter().filter(|(_, (_, regs))| regs.contains(sreg))
-//         .for_each(|(_, (c, _))| {
-//             c.update(props.clone());
-//         });
-// }

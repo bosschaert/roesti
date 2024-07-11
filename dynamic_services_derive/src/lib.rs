@@ -470,11 +470,12 @@ pub fn dynamic_services_main(_attr: TokenStream, item: TokenStream) -> TokenStre
 
     let new_code = quote! {
         fn register_service(svc: Box<dyn ::std::any::Any + Send + Sync>,
-                props: std::collections::BTreeMap<String, String>)
+                mut props: std::collections::BTreeMap<String, String>)
                 -> ::roesti::service_registry::ServiceRegistration {
             register_consumers();
 
             let sreg = ::roesti::service_registry::ServiceRegistration::new();
+            props.insert(".service_id".to_string(), sreg.id.to_string());
             println!("Registering service: {:?} - {:?}", svc, sreg);
             ::roesti::service_registry::REGD_SERVICES.write().unwrap().insert(sreg.clone(), (svc, props));
 
@@ -560,16 +561,16 @@ fn generate_consumer(path: PathBuf, file_name: &str) -> Option<(String, String, 
         let inject_function = generate_inject_function(json, type_name);
 
         let tokens = quote!{
-            static #global_ctor_map: ::once_cell::sync::Lazy<std::sync::Mutex<Vec<fn() -> #ps #static_lifetimes>>>
-                = ::once_cell::sync::Lazy::new(||std::sync::Mutex::new(Vec::new()));
-            static #global_inst_map: ::once_cell::sync::Lazy<std::sync::Mutex<
+            static #global_ctor_map: ::once_cell::sync::Lazy<std::sync::RwLock<Vec<fn() -> #ps #static_lifetimes>>>
+                = ::once_cell::sync::Lazy::new(||std::sync::RwLock::new(Vec::new()));
+            static #global_inst_map: ::once_cell::sync::Lazy<std::sync::RwLock<
                     std::collections::HashMap<::roesti::service_registry::ConsumerRegistration,
                         (#ps, Vec<::roesti::service_registry::ServiceRegistration>)>>>
-                = ::once_cell::sync::Lazy::new(||std::sync::Mutex::new(std::collections::HashMap::new()));
+                = ::once_cell::sync::Lazy::new(||std::sync::RwLock::new(std::collections::HashMap::new()));
 
             fn #register_fn() {
                 println!("Registering Consumer: {}", #type_name);
-                #global_ctor_map.lock().unwrap().push(|| #ps::default());
+                #global_ctor_map.write().unwrap().push(|| #ps::default());
             }
 
             #(#inject_function)*
@@ -613,7 +614,7 @@ fn generate_inject_function(json: serde_json::Value, type_name: &str) -> Vec<pro
                             sreg: &::roesti::service_registry::ServiceRegistration,
                             props: &std::collections::BTreeMap<String, String>) {
                         if let Some(sr) = svc.downcast_ref::<#itn>() {
-                            for ctor in #global_ctor_map.lock().unwrap().iter() {
+                            for ctor in #global_ctor_map.read().unwrap().iter() {
                                 let mut c = ctor();
                                 c.#setter_ref(sreg, props);
 
@@ -621,7 +622,7 @@ fn generate_inject_function(json: serde_json::Value, type_name: &str) -> Vec<pro
 
                                 // Keep the consumer instance in the global map
                                 let regs = vec![sreg.clone()];
-                                #global_inst_map.lock().unwrap().insert(
+                                #global_inst_map.write().unwrap().insert(
                                     ::roesti::service_registry::ConsumerRegistration::new(), (c, regs));
                             }
                         }
@@ -629,7 +630,7 @@ fn generate_inject_function(json: serde_json::Value, type_name: &str) -> Vec<pro
 
                     fn #update_fn(sreg: &::roesti::service_registry::ServiceRegistration,
                             props: &std::collections::BTreeMap<String, String>) {
-                        let global = #global_inst_map.lock().unwrap();
+                        let global = #global_inst_map.read().unwrap();
                         global.iter()
                             .filter(|(_, (_, regs))| regs.contains(sreg))
                             .for_each(|(_, (c, _))| {
@@ -639,7 +640,7 @@ fn generate_inject_function(json: serde_json::Value, type_name: &str) -> Vec<pro
 
                     fn #uninject_fn(sreg: &::roesti::service_registry::ServiceRegistration) {
                         let mut deleted = vec![];
-                        let mut global = #global_inst_map.lock().unwrap();
+                        let mut global = #global_inst_map.write().unwrap();
                         global.iter_mut()
                             .filter(|(_, (_, regs))| regs.contains(sreg))
                             .for_each(|(ci, (c, _))| {

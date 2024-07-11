@@ -23,7 +23,7 @@ impl ServiceRegistry {
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ServiceRegistration {
-    id: Uuid,
+    pub id: Uuid,
 }
 
 impl ServiceRegistration {
