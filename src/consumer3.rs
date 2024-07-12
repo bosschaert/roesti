@@ -1,3 +1,4 @@
+use crate::sunlight_service::SunlightService;
 use crate::tidal_service::TidalService;
 use crate::service_registry::ServiceReference;
 use dynamic_services_derive::DynamicServices;
@@ -10,12 +11,15 @@ pub struct Consumer3<'a, 'b> {
 
     #[inject]
     tidal_ref_obj: Option<ServiceReference<TidalService>>,
+
+    #[inject]
+    sunlight: Option<ServiceReference<SunlightService>>
 }
 
 #[dynamic_services(path=roesti::consumer3)]
 impl Consumer3<'_, '_> {
     pub fn default() -> Self {
-        Consumer3 { _foo: "foo", _bar: "bar", tidal_ref_obj: None }
+        Consumer3 { _foo: "foo", _bar: "bar", tidal_ref_obj: None, sunlight: None }
     }
 
     // Called after the constructor has been called.
