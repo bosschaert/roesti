@@ -390,9 +390,35 @@ fn generate_class(file_path: &str, type_name: &str, generated: &mut proc_macro2:
     let json: serde_json::Value = serde_json::from_str(&content).unwrap();
 
     let lifetimes = get_lifetimes_from_json(json.as_array().unwrap());
+    let mut fields = vec![];
     for action in json.as_array().unwrap() {
-        generated.extend(generate_action(type_name, action, &lifetimes));
+        generated.extend(generate_action(type_name, action, &mut fields, &lifetimes));
     }
+
+    if fields.len() > 0 {
+        generate_unset_all(type_name, lifetimes, fields, generated);
+    }
+}
+
+fn generate_unset_all(type_name: &str, lifetimes: Vec<String>, fields: Vec<String>, 
+        generated: &mut proc_macro2::TokenStream) {
+    let tn = format_ident!("{}", type_name);
+    let lifetimes_code = quote_fixed_lifetimes(lifetimes.len(), quote! { '_ });
+    let mut unset_calls = vec![];
+    for field in fields {
+        let injected_ref = format_ident!("{}", field);
+        unset_calls.push(quote! {
+            self.#injected_ref = None;
+        });
+    }
+    generated.extend(quote!{
+        impl #tn #lifetimes_code {
+            pub fn unset_all(&mut self) {
+                println!("[{}] Unsetting all injected fields", #type_name);
+                #(#unset_calls)*
+            }
+        }
+    });
 }
 
 fn get_lifetimes_from_json(actions: &[serde_json::Value]) -> Vec<String> {
@@ -413,13 +439,15 @@ fn get_lifetimes_from_json(actions: &[serde_json::Value]) -> Vec<String> {
     lifetimes
 }
 
-fn generate_action(type_name: &str, action: &serde_json::Value, lifetimes: &Vec<String>) -> proc_macro2::TokenStream {
+fn generate_action(type_name: &str, action: &serde_json::Value, fields: &mut Vec<String>,
+        lifetimes: &Vec<String>) -> proc_macro2::TokenStream {
     let lifetimes_code = quote_fixed_lifetimes(lifetimes.len(), quote! { '_ });
 
     let op = action["op"].as_str().unwrap();
     match op {
         "SetterInjectField" => {
             let field = action["field"].as_str().unwrap();
+            fields.push(field.to_string());
             let injected_type_name = action["type"].as_str().unwrap();
 
             let tn = format_ident!("{}", type_name);
@@ -434,11 +462,6 @@ fn generate_action(type_name: &str, action: &serde_json::Value, lifetimes: &Vec<
                             props: &std::collections::BTreeMap<String, String>) {
                         println!("[{}] Setting {} to {:?}", #type_name, #field, sreg);
                         self.#injected_ref = Some(ServiceReference::from(sreg, props.clone()));
-                    }
-
-                    pub fn unset_all(&mut self) {
-                        println!("[{}] Unsetting all injected fields", #type_name);
-                        self.#injected_ref = None;
                     }
 
                     // fn #invoke_svc(&self, cb: impl Fn (&#itn)) {
