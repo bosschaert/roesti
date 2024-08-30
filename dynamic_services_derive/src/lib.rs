@@ -468,16 +468,6 @@ fn generate_action(type_name: &str, action: &serde_json::Value, fields: &mut Vec
                         println!("[{}] Setting {} to {:?}", #type_name, #field, sreg);
                         self.#injected_ref = Some(ServiceReference::from(sreg, props.clone()));
                     }
-
-                    // fn #invoke_svc(&self, cb: impl Fn (&#itn)) {
-                    //     let sr = crate::service_registry::REGD_SERVICES.read().unwrap();
-                    //     let sref = &self.#injected_ref.as_ref().unwrap();
-                    //     let sreg = crate::service_registry::ServiceRegistration::from(sref);
-                    //     let (svc, _) = sr.get(&sreg).unwrap();
-                    //     if let Some(sr) = svc.downcast_ref::<#itn>() {
-                    //         cb(sr);
-                    //     }
-                    // }
                 }
             };
             return new_code;
@@ -620,73 +610,13 @@ fn get_path_from_json(actions: &[serde_json::Value]) -> Option<String> {
 }
 
 fn generate_inject_function(json: serde_json::Value, type_name: &str) -> Vec<proc_macro2::TokenStream> {
-    let mut quotes = vec![];
-
-    let act_call = generate_activator_call(type_name);
-    let update_call = generate_update_call(type_name);
-    let deact_call = generate_deactivator_call(type_name);
-
     let mut setter_injects = HashMap::new();
-
     for action in json.as_array().unwrap() {
         let op = action["op"].as_str().unwrap();
         match op {
             "SetterInjectField" => {
                 setter_injects.insert(action["field"].as_str().unwrap().to_string(),
                     action["type"].as_str().unwrap().to_string());
-                /*
-                let injected_type_name = action["type"].as_str().unwrap();
-                let inject_fn = format_ident!("inject_{}", type_name);
-                let update_fn = format_ident!("update_{}", type_name);
-                let uninject_fn = format_ident!("uninject_{}", type_name);
-                let itn = format_ident!("{}", injected_type_name);
-                let global_ctor_map = format_ident!("CONSUMER_CTOR_{}", type_name.to_uppercase());
-                let global_inst_map = format_ident!("CONSUMER_INST_{}", type_name.to_uppercase());
-                let setter_ref = format_ident!("set_{}_ref", injected_type_name);
-                let q = quote! {
-                    fn #inject_fn(svc: &Box<dyn ::std::any::Any + Send + Sync>,
-                            sreg: &::roesti::service_registry::ServiceRegistration,
-                            props: &std::collections::BTreeMap<String, String>) {
-                        if let Some(sr) = svc.downcast_ref::<#itn>() {
-                            for ctor in #global_ctor_map.read().unwrap().iter() {
-                                let mut c = ctor();
-                                c.#setter_ref(sreg, props);
-
-                                #act_call;
-
-                                // Keep the consumer instance in the global map
-                                let regs = vec![sreg.clone()];
-                                #global_inst_map.write().unwrap().insert(
-                                    ::roesti::service_registry::ConsumerRegistration::new(), (c, regs));
-                            }
-                        }
-                    }
-
-                    fn #update_fn(sreg: &::roesti::service_registry::ServiceRegistration,
-                            props: &std::collections::BTreeMap<String, String>) {
-                        let global = #global_inst_map.read().unwrap();
-                        global.iter()
-                            .filter(|(_, (_, regs))| regs.contains(sreg))
-                            .for_each(|(_, (c, _))| {
-                                #update_call;
-                            });
-                    }
-
-                    fn #uninject_fn(sreg: &::roesti::service_registry::ServiceRegistration) {
-                        let mut deleted = vec![];
-                        let mut global = #global_inst_map.write().unwrap();
-                        global.iter_mut()
-                            .filter(|(_, (_, regs))| regs.contains(sreg))
-                            .for_each(|(ci, (c, _))| {
-                                deleted.push(ci.clone());
-                                c.unset_all();
-                                #deact_call;
-                            });
-                        deleted.iter().for_each(|ci| { global.remove(ci); });
-                    }
-                };
-                quotes.push(q);
-                */
             },
             "LifeTimes" => {
                 // ignore
@@ -697,8 +627,11 @@ fn generate_inject_function(json: serde_json::Value, type_name: &str) -> Vec<pro
         }
     }
 
-    println!("***Setter Injects: {:?}", setter_injects);
-    println!("----------------------");
+    let act_call = generate_activator_call(type_name);
+    let update_call = generate_update_call(type_name);
+    let deact_call = generate_deactivator_call(type_name);
+
+    let mut quotes = vec![];
     if !setter_injects.is_empty() {
         let global_inst_map = format_ident!("CONSUMER_INST_{}", type_name.to_uppercase());
 
@@ -751,9 +684,25 @@ fn generate_inject_function(json: serde_json::Value, type_name: &str) -> Vec<pro
 
             fn #update_fn(sreg: &::roesti::service_registry::ServiceRegistration,
                 props: &std::collections::BTreeMap<String, String>) {
+                let global = #global_inst_map.read().unwrap();
+                global.iter()
+                    .filter(|(_, (_, regs, _))| regs.contains(sreg))
+                    .for_each(|(_, (c, _, _))| {
+                        #update_call;
+                });
             }
 
             fn #uninject_fn(sreg: &::roesti::service_registry::ServiceRegistration) {
+                let mut deleted = vec![];
+                let mut global = #global_inst_map.write().unwrap();
+                global.iter_mut()
+                    .filter(|(_, (_, regs, _))| regs.contains(sreg))
+                    .for_each(|(ci, (c, _, _))| {
+                        deleted.push(ci.clone());
+                        c.unset_all();
+                        #deact_call;
+                    });
+                deleted.iter().for_each(|ci| { global.remove(ci); });
             }
         };
         quotes.push(q);
@@ -817,7 +766,8 @@ fn generate_update(file: &str, new_code: &mut proc_macro2::TokenStream) {
                 let func_name = action["method"].as_str().unwrap();
                 let update_md = format_ident!("{}", func_name);
                 new_code.extend(quote! {
-                    c.#update_md(props.clone());
+                    // c.#update_md(props.clone());
+                    c.#update_md();
                 });
             }
             _ => {
