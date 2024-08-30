@@ -494,7 +494,6 @@ pub fn dynamic_services_main(_attr: TokenStream, item: TokenStream) -> TokenStre
 
             let sreg = ::roesti::service_registry::ServiceRegistration::new();
             props.insert(".service_id".to_string(), sreg.id.to_string());
-            println!("Registering service: {:?} - {:?}", svc, sreg);
             ::roesti::service_registry::REGD_SERVICES.write().unwrap().insert(sreg.clone(), (svc, props));
 
             inject_consumers();
@@ -644,7 +643,7 @@ fn generate_inject_function(json: serde_json::Value, type_name: &str) -> Vec<pro
 
             inject_calls.push(quote!{
                 if let Some(sr) = svc.downcast_ref::<#itn>() {
-                    for (_, (i, _, md)) in #global_inst_map.write().unwrap().iter_mut() {
+                    for (_, (i, _, md)) in gm.iter_mut() {
                         if i.#getter_ref().is_none() {
                             i.#setter_ref(sreg, props);
                             md.inc_fields_injected();
@@ -663,19 +662,28 @@ fn generate_inject_function(json: serde_json::Value, type_name: &str) -> Vec<pro
             fn #inject_fn(svc: &Box<dyn ::std::any::Any + Send + Sync>,
                 sreg: &::roesti::service_registry::ServiceRegistration,
                 props: &std::collections::BTreeMap<String, String>) {
-                if #global_inst_map.read().unwrap().is_empty() {
+                let mut gm = #global_inst_map.write().unwrap();
+                if gm.is_empty() {
                     for ctor in #global_ctor_map.read().unwrap().iter() {
                         let mut i = ctor();
                         let regs = vec![sreg.clone()];
-                        #global_inst_map.write().unwrap().insert(
+                        gm.insert(
                             ::roesti::service_registry::ConsumerRegistration::new(),
                             (i, regs, ::roesti::service_registry::InjectMetadata::new())
                         );
                     }
+                } else {
+                    for ctor in #global_ctor_map.read().unwrap().iter() {
+                        for (_, (_, regs, _)) in gm.iter_mut() {
+                            if !regs.contains(sreg) {
+                                regs.push(sreg.clone());
+                            }
+                        }
+                    }
                 }
                 #(#inject_calls)*
 
-                for (_, (c, _, md)) in #global_inst_map.write().unwrap().iter_mut() {
+                for (_, (c, regs, md)) in gm.iter_mut() {
                     if md.get_fields_injected() == #expected_num_injects
                         && !md.is_activated() {
                         #act_call;
@@ -733,10 +741,49 @@ fn generate_activator(file: &str, new_code: &mut proc_macro2::TokenStream) {
         match op {
             "ActivatorFunct" => {
                 let func_name = action["method"].as_str().unwrap();
+
+                let args = action["args"].as_array().unwrap();
+                let mut arg_calls = vec![];
+                let mut arg_coll_code = vec![];
+                let mut arg_prep = vec![];
+                let mut invoke_cond = vec![quote!{ true }];
+                let mut argnum = 0usize;
+                for arg in args {
+                    let a = arg.as_str().unwrap();
+                    if a.chars().next().unwrap() != '&' {
+                        panic!("Expected reference argument");
+                    }
+
+                    let arg_name = format_ident!("arg{}", argnum);
+                    let arg_type = format_ident!("{}", &a[1..]);
+                    let code = quote!{
+                        let svc_registry = ::roesti::service_registry::REGD_SERVICES.read().unwrap();
+                        let mut #arg_name = None;
+                        for reg in regs {
+                            let (svc, _) = svc_registry.get(reg).unwrap();
+
+                            if let Some(sr) = svc.downcast_ref::<#arg_type>() {
+                                #arg_name = Some(sr);
+                            }
+                        }
+                    };
+                    let argval_name = format_ident!("argval{}", argnum);
+                    invoke_cond.push(quote!{ #arg_name.is_some() });
+                    arg_prep.push(quote!{ let #argval_name = #arg_name.unwrap(); });
+                    arg_calls.push(quote!{ #argval_name });
+                    arg_coll_code.push(code);
+                    argnum += 1;
+                }
+
                 let activate_md = format_ident!("{}", func_name);
                 new_code.extend(quote! {
-                    // c.#activate_md(sr); // TODO pass arguments back in
-                    c.#activate_md();
+                    println!("Activating: {}", #func_name);
+                    #(#arg_coll_code)*
+
+                    if #(#invoke_cond)&&* {
+                        #(#arg_prep)*
+                        c.#activate_md(#(#arg_calls)*);
+                    }
                 });
             },
             _ => {

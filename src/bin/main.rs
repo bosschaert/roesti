@@ -28,3 +28,16 @@ fn main() {
 
     unregister_service(sreg);
 }
+
+// fn act() {
+//     let ts = TidalService{
+//         location: "A".to_string()
+//     };
+
+//     for (_, (c, _, md)) in CONSUMER_INST_CONSUMER2.write().unwrap().iter_mut() {
+//         if md.get_fields_injected() == 1usize && !md.is_activated() {
+//             c.activate(&ts);
+//             md.set_activated();
+//         }
+//     }
+// }
