@@ -400,7 +400,7 @@ fn generate_class(file_path: &str, type_name: &str, generated: &mut proc_macro2:
     }
 }
 
-fn generate_unset_all(type_name: &str, lifetimes: Vec<String>, fields: Vec<String>, 
+fn generate_unset_all(type_name: &str, lifetimes: Vec<String>, fields: Vec<String>,
         generated: &mut proc_macro2::TokenStream) {
     let tn = format_ident!("{}", type_name);
     let lifetimes_code = quote_fixed_lifetimes(lifetimes.len(), quote! { '_ });
@@ -451,12 +451,17 @@ fn generate_action(type_name: &str, action: &serde_json::Value, fields: &mut Vec
             let injected_type_name = action["type"].as_str().unwrap();
 
             let tn = format_ident!("{}", type_name);
+            let get_ts_ref = format_ident!("get_{}_ref", injected_type_name);
             let set_ts_ref = format_ident!("set_{}_ref", injected_type_name);
-            // let itn = format_ident!("{}", injected_type_name);
+            let itn = format_ident!("{}", injected_type_name);
             let injected_ref = format_ident!("{}", field);
             // let invoke_svc = format_ident!("invoke_{}", field);
             let new_code = quote! {
                 impl #tn #lifetimes_code {
+                    pub fn #get_ts_ref(&self) -> &Option<ServiceReference<#itn>> {
+                        &self.#injected_ref
+                    }
+
                     pub fn #set_ts_ref(&mut self,
                             sreg: &crate::service_registry::ServiceRegistration,
                             props: &std::collections::BTreeMap<String, String>) {
@@ -589,7 +594,7 @@ fn generate_consumer(path: PathBuf, file_name: &str) -> Option<(String, String, 
                 = ::once_cell::sync::Lazy::new(||std::sync::RwLock::new(Vec::new()));
             static #global_inst_map: ::once_cell::sync::Lazy<std::sync::RwLock<
                     std::collections::HashMap<::roesti::service_registry::ConsumerRegistration,
-                        (#ps, Vec<::roesti::service_registry::ServiceRegistration>)>>>
+                        (#ps, Vec<::roesti::service_registry::ServiceRegistration>, ::roesti::service_registry::InjectMetadata)>>>
                 = ::once_cell::sync::Lazy::new(||std::sync::RwLock::new(std::collections::HashMap::new()));
 
             fn #register_fn() {
@@ -621,10 +626,15 @@ fn generate_inject_function(json: serde_json::Value, type_name: &str) -> Vec<pro
     let update_call = generate_update_call(type_name);
     let deact_call = generate_deactivator_call(type_name);
 
+    let mut setter_injects = HashMap::new();
+
     for action in json.as_array().unwrap() {
         let op = action["op"].as_str().unwrap();
         match op {
             "SetterInjectField" => {
+                setter_injects.insert(action["field"].as_str().unwrap().to_string(),
+                    action["type"].as_str().unwrap().to_string());
+                /*
                 let injected_type_name = action["type"].as_str().unwrap();
                 let inject_fn = format_ident!("inject_{}", type_name);
                 let update_fn = format_ident!("update_{}", type_name);
@@ -676,6 +686,7 @@ fn generate_inject_function(json: serde_json::Value, type_name: &str) -> Vec<pro
                     }
                 };
                 quotes.push(q);
+                */
             },
             "LifeTimes" => {
                 // ignore
@@ -685,6 +696,69 @@ fn generate_inject_function(json: serde_json::Value, type_name: &str) -> Vec<pro
             }
         }
     }
+
+    println!("***Setter Injects: {:?}", setter_injects);
+    println!("----------------------");
+    if !setter_injects.is_empty() {
+        let global_inst_map = format_ident!("CONSUMER_INST_{}", type_name.to_uppercase());
+
+        let expected_num_injects = setter_injects.len();
+        let mut inject_calls = vec![];
+        for (_, injected_type_name) in setter_injects {
+            let itn = format_ident!("{}", injected_type_name);
+            let getter_ref = format_ident!("get_{}_ref", injected_type_name);
+            let setter_ref = format_ident!("set_{}_ref", injected_type_name);
+
+            inject_calls.push(quote!{
+                if let Some(sr) = svc.downcast_ref::<#itn>() {
+                    for (_, (i, _, md)) in #global_inst_map.write().unwrap().iter_mut() { /* read? */
+                        if i.#getter_ref().is_none() {
+                            i.#setter_ref(sreg, props);
+                            md.inc_fields_injected();
+                        }
+                    }
+                }
+            });
+        }
+
+
+        let inject_fn = format_ident!("inject_{}", type_name);
+        let update_fn = format_ident!("update_{}", type_name);
+        let uninject_fn = format_ident!("uninject_{}", type_name);
+        let global_ctor_map = format_ident!("CONSUMER_CTOR_{}", type_name.to_uppercase());
+        let q = quote! {
+            fn #inject_fn(svc: &Box<dyn ::std::any::Any + Send + Sync>,
+                sreg: &::roesti::service_registry::ServiceRegistration,
+                props: &std::collections::BTreeMap<String, String>) {
+                if #global_inst_map.read().unwrap().is_empty() {
+                    for ctor in #global_ctor_map.read().unwrap().iter() {
+                        let mut i = ctor();
+                        let regs = vec![sreg.clone()];
+                        #global_inst_map.write().unwrap().insert(
+                            ::roesti::service_registry::ConsumerRegistration::new(),
+                            (i, regs, ::roesti::service_registry::InjectMetadata::new())
+                        );
+                    }
+                }
+                #(#inject_calls)*
+
+                for (_, (c, _, md)) in #global_inst_map.write().unwrap().iter_mut() { /* read */
+                    if md.get_fields_injected() == #expected_num_injects {
+                        #act_call;
+                    }
+                }
+            }
+
+            fn #update_fn(sreg: &::roesti::service_registry::ServiceRegistration,
+                props: &std::collections::BTreeMap<String, String>) {
+            }
+
+            fn #uninject_fn(sreg: &::roesti::service_registry::ServiceRegistration) {
+            }
+        };
+        quotes.push(q);
+    }
+
     quotes
 }
 
@@ -710,7 +784,8 @@ fn generate_activator(file: &str, new_code: &mut proc_macro2::TokenStream) {
                 let func_name = action["method"].as_str().unwrap();
                 let activate_md = format_ident!("{}", func_name);
                 new_code.extend(quote! {
-                    c.#activate_md(sr);
+                    // c.#activate_md(sr); // TODO pass arguments back in
+                    c.#activate_md();
                 });
             },
             _ => {

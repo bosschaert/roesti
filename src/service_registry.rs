@@ -63,13 +63,34 @@ impl <T>ServiceReference<T> {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ConsumerRegistration {
-    id: Uuid
+    id: Uuid,
 }
 
 impl ConsumerRegistration {
     pub fn new() -> ConsumerRegistration {
         ConsumerRegistration {
-            id: Uuid::new_v4()
+            id: Uuid::new_v4(),
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct InjectMetadata {
+    fields_injected: usize,
+}
+
+impl InjectMetadata {
+    pub fn new() -> InjectMetadata {
+        InjectMetadata {
+            fields_injected: 0,
+        }
+    }
+
+    pub fn inc_fields_injected(&mut self) {
+        self.fields_injected += 1;
+    }
+
+    pub fn get_fields_injected(&self) -> usize {
+        self.fields_injected
     }
 }

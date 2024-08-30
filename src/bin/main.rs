@@ -1,3 +1,4 @@
+use std::boxed::Box;
 use std::collections::BTreeMap;
 use std::time::Duration;
 use std::thread;
@@ -18,15 +19,20 @@ fn main() {
 
     let sreg = register_service(Box::new(ts), props.clone());
 
-    thread::sleep(Duration::from_secs(1));
 
-    props.remove("hello");
-    props.insert("hi".to_string(), "ha".to_string());
-    update_service(&sreg, props);
+    // props.remove("hello");
+    // props.insert("hi".to_string(), "ha".to_string());
+    // update_service(&sreg, props);
 
-    unregister_service(sreg);
+    // unregister_service(sreg);
 
     // TODO add a different service
+    let sls = SunlightService{
+        location: "B".to_string()
+    };
+    let sreg2 = register_service(Box::new(sls), BTreeMap::new());
+
+    thread::sleep(Duration::from_secs(1));
 }
 
 fn inject_cons() {
@@ -35,33 +41,33 @@ fn inject_cons() {
 }
 
 fn inject_Consumer3a(svcs: std::sync::RwLockReadGuard<std::collections::HashMap<roesti::service_registry::ServiceRegistration, (Box<dyn std::any::Any + Send + Sync>, BTreeMap<String, String>)>>) {
-    for ctor in CONSUMER_CTOR_CONSUMER3.read().unwrap().iter() {        
-        let mut ts = None;
-        let mut ss = None;
+    // for ctor in CONSUMER_CTOR_CONSUMER3.read().unwrap().iter() {
+    //     let mut ts = None;
+    //     let mut ss = None;
 
-        for (sreg, (svc, props)) in svcs.iter() {
-            if let Some(sr) = svc.downcast_ref::<TidalService>() {
-                ts = Some((sr, sreg, props));
-            }
-            if let Some(sr) = svc.downcast_ref::<SunlightService>() {
-                ss = Some((sr, sreg, props));
-            }
-        }
+    //     for (sreg, (svc, props)) in svcs.iter() {
+    //         if let Some(sr) = svc.downcast_ref::<TidalService>() {
+    //             ts = Some((sr, sreg, props));
+    //         }
+    //         if let Some(sr) = svc.downcast_ref::<SunlightService>() {
+    //             ss = Some((sr, sreg, props));
+    //         }
+    //     }
 
-        if let Some((tss, tsssreg, tssprops)) = ts {
-            if let Some((sss, ssssreg, sssprops)) = ss {
-                let mut c = ctor();
+    //     if let Some((tss, tsssreg, tssprops)) = ts {
+    //         if let Some((sss, ssssreg, sssprops)) = ss {
+    //             let mut c = ctor();
 
-                c.set_TidalService_ref(tsssreg, tssprops);
-                c.set_SunlightService_ref(ssssreg, sssprops);
+    //             c.set_TidalService_ref(tsssreg, tssprops);
+    //             c.set_SunlightService_ref(ssssreg, sssprops);
 
-                c.activate(tss /*, sss */);
+    //             c.activate(tss /*, sss */);
 
-                let regs = vec![sreg.clone()];
-                CONSUMER_INST_CONSUMER3.write().unwrap().insert(
-                    ::roesti::service_registry::ConsumerRegistration::new(), (c, regs));
-            }
-        }
+    //             let regs = vec![sreg.clone()];
+    //             CONSUMER_INST_CONSUMER3.write().unwrap().insert(
+    //                 ::roesti::service_registry::ConsumerRegistration::new(), (c, regs));
+    //         }
+    //     }
 
 
         // if let Some(sr) = svc.downcast_ref::<TidalService>() {
@@ -82,9 +88,9 @@ fn inject_Consumer3a(svcs: std::sync::RwLockReadGuard<std::collections::HashMap<
         //             );
         //     }
         // }
-    
 
-    }
+
+    // }
 }
 
 
