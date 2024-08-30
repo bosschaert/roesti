@@ -644,7 +644,7 @@ fn generate_inject_function(json: serde_json::Value, type_name: &str) -> Vec<pro
 
             inject_calls.push(quote!{
                 if let Some(sr) = svc.downcast_ref::<#itn>() {
-                    for (_, (i, _, md)) in #global_inst_map.write().unwrap().iter_mut() { /* read? */
+                    for (_, (i, _, md)) in #global_inst_map.write().unwrap().iter_mut() {
                         if i.#getter_ref().is_none() {
                             i.#setter_ref(sreg, props);
                             md.inc_fields_injected();
@@ -675,9 +675,11 @@ fn generate_inject_function(json: serde_json::Value, type_name: &str) -> Vec<pro
                 }
                 #(#inject_calls)*
 
-                for (_, (c, _, md)) in #global_inst_map.write().unwrap().iter_mut() { /* read */
-                    if md.get_fields_injected() == #expected_num_injects {
+                for (_, (c, _, md)) in #global_inst_map.write().unwrap().iter_mut() {
+                    if md.get_fields_injected() == #expected_num_injects
+                        && !md.is_activated() {
                         #act_call;
+                        md.set_activated();
                     }
                 }
             }

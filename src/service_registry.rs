@@ -77,12 +77,14 @@ impl ConsumerRegistration {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct InjectMetadata {
     fields_injected: usize,
+    is_activated: bool,
 }
 
 impl InjectMetadata {
     pub fn new() -> InjectMetadata {
         InjectMetadata {
             fields_injected: 0,
+            is_activated: false,
         }
     }
 
@@ -92,5 +94,13 @@ impl InjectMetadata {
 
     pub fn get_fields_injected(&self) -> usize {
         self.fields_injected
+    }
+
+    pub fn set_activated(&mut self) {
+        self.is_activated = true;
+    }
+
+    pub fn is_activated(&self) -> bool {
+        self.is_activated
     }
 }
