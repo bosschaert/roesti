@@ -744,7 +744,7 @@ fn generate_activator(file: &str, new_code: &mut proc_macro2::TokenStream) {
 
                 let args = action["args"].as_array().unwrap();
                 let mut arg_calls = vec![];
-                let mut arg_coll_code = vec![];
+                let mut arg_coll_code = vec![quote!{let svc_registry = ::roesti::service_registry::REGD_SERVICES.read().unwrap();}];
                 let mut arg_prep = vec![];
                 let mut invoke_cond = vec![quote!{ true }];
                 let mut argnum = 0usize;
@@ -757,10 +757,10 @@ fn generate_activator(file: &str, new_code: &mut proc_macro2::TokenStream) {
                     let arg_name = format_ident!("arg{}", argnum);
                     let arg_type = format_ident!("{}", &a[1..]);
                     let code = quote!{
-                        let svc_registry = ::roesti::service_registry::REGD_SERVICES.read().unwrap();
+
                         let mut #arg_name = None;
-                        for reg in regs {
-                            let (svc, _) = svc_registry.get(reg).unwrap();
+                        for reg in regs.clone() {
+                            let (svc, _) = svc_registry.get(&reg).unwrap();
 
                             if let Some(sr) = svc.downcast_ref::<#arg_type>() {
                                 #arg_name = Some(sr);
@@ -777,12 +777,11 @@ fn generate_activator(file: &str, new_code: &mut proc_macro2::TokenStream) {
 
                 let activate_md = format_ident!("{}", func_name);
                 new_code.extend(quote! {
-                    println!("Activating: {}", #func_name);
                     #(#arg_coll_code)*
 
                     if #(#invoke_cond)&&* {
                         #(#arg_prep)*
-                        c.#activate_md(#(#arg_calls)*);
+                        c.#activate_md(#(#arg_calls),*);
                     }
                 });
             },

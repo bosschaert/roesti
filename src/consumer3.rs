@@ -24,8 +24,9 @@ impl Consumer3<'_, '_> {
 
     // Called after the constructor has been called.
     #[activator]
-    pub fn activate(&self) {
+    pub fn activate(&self, sls: &SunlightService, ts: &TidalService) {
         println!("Consumer 3 Activated:\n{:?}\n{:?}", self.tidal_ref_obj, self.sunlight);
+        println!("                    :\n{:?}\n{:?}", sls.next_sundown(), ts.next_event());
         if let Some(sr) = &self.tidal_ref_obj {
             println!("  properties: {:?}", sr.get_properties());
         }
