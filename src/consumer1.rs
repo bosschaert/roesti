@@ -2,8 +2,8 @@ use crate::service_registry::ServiceReference;
 use crate::tidal_service::TidalService;
 use std::fmt::Display;
 
-use dynamic_services_derive::dynamic_services;
-use dynamic_services_derive::DynamicServices;
+use dynamic_services::dynamic_services;
+use dynamic_services::DynamicServices;
 
 #[derive(DynamicServices, Debug, Default)]
 pub struct Consumer1<'a> {
