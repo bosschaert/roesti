@@ -27,10 +27,4 @@ fn main() {
     update_service(&sreg, props);
 
     unregister_service(sreg);
-    foo_Bar();
-}
-
-#[allow(non_snake_case)]
-fn foo_Bar() {
-
 }

@@ -12,7 +12,6 @@ pub struct Consumer2 {
 #[dynamic_services(path=roesti::consumer2)]
 impl Consumer2 {
     // Called after the constructor has been called.
-    // TODO pass in reference to the services requested
     #[activator]
     pub fn activate(&self, ts: &TidalService) {
         println!("Consumer 2 Activated... {} - {:?}", ts.next_event(), self.tidal);
@@ -21,11 +20,6 @@ impl Consumer2 {
     #[deactivator]
     pub fn deactivate(&self) {
         println!("Consumer 2 Deactivated...");
+        // TODO actually destruct the instance
     }
-
-    // TODO also provide an update method?
-
-    // pub fn new() -> Self {
-    //     Consumer2 { tidal: None }
-    // }
 }

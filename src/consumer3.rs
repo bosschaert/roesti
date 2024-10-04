@@ -34,7 +34,7 @@ impl Consumer3<'_, '_> {
 
     #[update]
     pub fn update(&self /* , props: std::collections::BTreeMap<String, String> */) {
-        // println!("Consumer 3 Updated: {:?}", props);
+        // TODO println!("Consumer 3 Updated: {:?}", props);
         println!("Consumer 3 Updated.");
     }
 }
