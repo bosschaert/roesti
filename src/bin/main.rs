@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use roesti::sunlight_service::SunlightService;
 use roesti::tidal_service::TidalService;
 
-use dynamic_services::dynamic_services_main;
+use dynamic_services_derive::dynamic_services_main;
 
 #[dynamic_services_main]
 fn main() {
@@ -27,4 +27,10 @@ fn main() {
     update_service(&sreg, props);
 
     unregister_service(sreg);
+    foo_Bar();
+}
+
+#[allow(non_snake_case)]
+fn foo_Bar() {
+
 }

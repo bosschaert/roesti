@@ -1,10 +1,10 @@
 use crate::sunlight_service::SunlightService;
 use crate::tidal_service::TidalService;
-use crate::service_registry::ServiceReference;
-use dynamic_services::DynamicServices;
-use dynamic_services::{activator, dynamic_services, update};
+use dynamic_services::ServiceReference;
+use dynamic_services_derive::DynamicServices;
+use dynamic_services_derive::{activator, dynamic_services, update};
 
-#[derive(DynamicServices, Debug, Default)]
+#[derive(DynamicServices, Default)]
 pub struct Consumer3<'a, 'b> {
     _foo: &'a str,
     _bar: &'b str,
