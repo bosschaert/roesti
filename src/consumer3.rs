@@ -34,7 +34,10 @@ impl Consumer3<'_, '_> {
 
     #[update]
     pub fn update(&self, field: &str, props: std::collections::BTreeMap<String, String>) {
-        println!("My Consumer 3 Updated. {:?} - {:?}", field, props);
+        println!("MyConsumer Updated.");
+        println!("  updated field: {}", field);
+        println!("  updated properties: {:?}", props);
+
         if field == "tidal_ref_obj" {
             if let Some(sr) = &self.tidal_ref_obj {
                 println!(" field properties: {:?}", sr.get_properties());
