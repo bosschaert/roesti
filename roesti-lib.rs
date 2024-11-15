@@ -3,298 +3,6 @@
 use std::prelude::rust_2021::*;
 #[macro_use]
 extern crate std;
-pub mod service_registry {
-    use once_cell::sync::Lazy;
-    use std::any::Any;
-    use std::collections::{BTreeMap, HashMap};
-    use std::marker::PhantomData;
-    use std::sync::RwLock;
-    use uuid::Uuid;
-    pub static REGD_SERVICES: Lazy<
-        RwLock<
-            HashMap<
-                ServiceRegistration,
-                (Box<dyn Any + Send + Sync>, BTreeMap<String, String>),
-            >,
-        >,
-    > = Lazy::new(|| RwLock::new(HashMap::new()));
-    pub struct ServiceRegistry {}
-    impl ServiceRegistry {
-        pub fn new() -> ServiceRegistry {
-            ServiceRegistry {}
-        }
-    }
-    pub struct ServiceRegistration {
-        pub id: Uuid,
-    }
-    #[automatically_derived]
-    impl ::core::clone::Clone for ServiceRegistration {
-        #[inline]
-        fn clone(&self) -> ServiceRegistration {
-            ServiceRegistration {
-                id: ::core::clone::Clone::clone(&self.id),
-            }
-        }
-    }
-    #[automatically_derived]
-    impl ::core::fmt::Debug for ServiceRegistration {
-        #[inline]
-        fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-            ::core::fmt::Formatter::debug_struct_field1_finish(
-                f,
-                "ServiceRegistration",
-                "id",
-                &&self.id,
-            )
-        }
-    }
-    #[automatically_derived]
-    impl ::core::marker::StructuralPartialEq for ServiceRegistration {}
-    #[automatically_derived]
-    impl ::core::cmp::PartialEq for ServiceRegistration {
-        #[inline]
-        fn eq(&self, other: &ServiceRegistration) -> bool {
-            self.id == other.id
-        }
-    }
-    #[automatically_derived]
-    impl ::core::cmp::Eq for ServiceRegistration {
-        #[inline]
-        #[doc(hidden)]
-        #[coverage(off)]
-        fn assert_receiver_is_total_eq(&self) -> () {
-            let _: ::core::cmp::AssertParamIsEq<Uuid>;
-        }
-    }
-    #[automatically_derived]
-    impl ::core::cmp::PartialOrd for ServiceRegistration {
-        #[inline]
-        fn partial_cmp(
-            &self,
-            other: &ServiceRegistration,
-        ) -> ::core::option::Option<::core::cmp::Ordering> {
-            ::core::cmp::PartialOrd::partial_cmp(&self.id, &other.id)
-        }
-    }
-    #[automatically_derived]
-    impl ::core::cmp::Ord for ServiceRegistration {
-        #[inline]
-        fn cmp(&self, other: &ServiceRegistration) -> ::core::cmp::Ordering {
-            ::core::cmp::Ord::cmp(&self.id, &other.id)
-        }
-    }
-    #[automatically_derived]
-    impl ::core::hash::Hash for ServiceRegistration {
-        #[inline]
-        fn hash<__H: ::core::hash::Hasher>(&self, state: &mut __H) -> () {
-            ::core::hash::Hash::hash(&self.id, state)
-        }
-    }
-    impl ServiceRegistration {
-        pub fn new() -> ServiceRegistration {
-            ServiceRegistration {
-                id: Uuid::new_v4(),
-            }
-        }
-        pub fn from<T>(sr: &ServiceReference<T>) -> ServiceRegistration {
-            ServiceRegistration { id: sr.id }
-        }
-    }
-    pub struct ServiceReference<T> {
-        id: Uuid,
-        properties: BTreeMap<String, String>,
-        _phantom: PhantomData<T>,
-    }
-    #[automatically_derived]
-    impl<T: ::core::clone::Clone> ::core::clone::Clone for ServiceReference<T> {
-        #[inline]
-        fn clone(&self) -> ServiceReference<T> {
-            ServiceReference {
-                id: ::core::clone::Clone::clone(&self.id),
-                properties: ::core::clone::Clone::clone(&self.properties),
-                _phantom: ::core::clone::Clone::clone(&self._phantom),
-            }
-        }
-    }
-    #[automatically_derived]
-    impl<T: ::core::fmt::Debug> ::core::fmt::Debug for ServiceReference<T> {
-        #[inline]
-        fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-            ::core::fmt::Formatter::debug_struct_field3_finish(
-                f,
-                "ServiceReference",
-                "id",
-                &self.id,
-                "properties",
-                &self.properties,
-                "_phantom",
-                &&self._phantom,
-            )
-        }
-    }
-    #[automatically_derived]
-    impl<T> ::core::marker::StructuralPartialEq for ServiceReference<T> {}
-    #[automatically_derived]
-    impl<T: ::core::cmp::PartialEq> ::core::cmp::PartialEq for ServiceReference<T> {
-        #[inline]
-        fn eq(&self, other: &ServiceReference<T>) -> bool {
-            self.id == other.id && self.properties == other.properties
-                && self._phantom == other._phantom
-        }
-    }
-    #[automatically_derived]
-    impl<T: ::core::cmp::Eq> ::core::cmp::Eq for ServiceReference<T> {
-        #[inline]
-        #[doc(hidden)]
-        #[coverage(off)]
-        fn assert_receiver_is_total_eq(&self) -> () {
-            let _: ::core::cmp::AssertParamIsEq<Uuid>;
-            let _: ::core::cmp::AssertParamIsEq<BTreeMap<String, String>>;
-            let _: ::core::cmp::AssertParamIsEq<PhantomData<T>>;
-        }
-    }
-    #[automatically_derived]
-    impl<T: ::core::cmp::PartialOrd> ::core::cmp::PartialOrd for ServiceReference<T> {
-        #[inline]
-        fn partial_cmp(
-            &self,
-            other: &ServiceReference<T>,
-        ) -> ::core::option::Option<::core::cmp::Ordering> {
-            match ::core::cmp::PartialOrd::partial_cmp(&self.id, &other.id) {
-                ::core::option::Option::Some(::core::cmp::Ordering::Equal) => {
-                    match ::core::cmp::PartialOrd::partial_cmp(
-                        &self.properties,
-                        &other.properties,
-                    ) {
-                        ::core::option::Option::Some(::core::cmp::Ordering::Equal) => {
-                            ::core::cmp::PartialOrd::partial_cmp(
-                                &self._phantom,
-                                &other._phantom,
-                            )
-                        }
-                        cmp => cmp,
-                    }
-                }
-                cmp => cmp,
-            }
-        }
-    }
-    #[automatically_derived]
-    impl<T: ::core::cmp::Ord> ::core::cmp::Ord for ServiceReference<T> {
-        #[inline]
-        fn cmp(&self, other: &ServiceReference<T>) -> ::core::cmp::Ordering {
-            match ::core::cmp::Ord::cmp(&self.id, &other.id) {
-                ::core::cmp::Ordering::Equal => {
-                    match ::core::cmp::Ord::cmp(&self.properties, &other.properties) {
-                        ::core::cmp::Ordering::Equal => {
-                            ::core::cmp::Ord::cmp(&self._phantom, &other._phantom)
-                        }
-                        cmp => cmp,
-                    }
-                }
-                cmp => cmp,
-            }
-        }
-    }
-    #[automatically_derived]
-    impl<T: ::core::hash::Hash> ::core::hash::Hash for ServiceReference<T> {
-        #[inline]
-        fn hash<__H: ::core::hash::Hasher>(&self, state: &mut __H) -> () {
-            ::core::hash::Hash::hash(&self.id, state);
-            ::core::hash::Hash::hash(&self.properties, state);
-            ::core::hash::Hash::hash(&self._phantom, state)
-        }
-    }
-    impl<T> ServiceReference<T> {
-        pub fn from(
-            sr: &ServiceRegistration,
-            properties: BTreeMap<String, String>,
-        ) -> ServiceReference<T> {
-            ServiceReference {
-                id: sr.id,
-                properties,
-                _phantom: PhantomData,
-            }
-        }
-        pub fn get_properties(&self) -> &BTreeMap<String, String> {
-            &self.properties
-        }
-    }
-    pub struct ConsumerRegistration {
-        id: Uuid,
-    }
-    #[automatically_derived]
-    impl ::core::clone::Clone for ConsumerRegistration {
-        #[inline]
-        fn clone(&self) -> ConsumerRegistration {
-            let _: ::core::clone::AssertParamIsClone<Uuid>;
-            *self
-        }
-    }
-    #[automatically_derived]
-    impl ::core::marker::Copy for ConsumerRegistration {}
-    #[automatically_derived]
-    impl ::core::fmt::Debug for ConsumerRegistration {
-        #[inline]
-        fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-            ::core::fmt::Formatter::debug_struct_field1_finish(
-                f,
-                "ConsumerRegistration",
-                "id",
-                &&self.id,
-            )
-        }
-    }
-    #[automatically_derived]
-    impl ::core::marker::StructuralPartialEq for ConsumerRegistration {}
-    #[automatically_derived]
-    impl ::core::cmp::PartialEq for ConsumerRegistration {
-        #[inline]
-        fn eq(&self, other: &ConsumerRegistration) -> bool {
-            self.id == other.id
-        }
-    }
-    #[automatically_derived]
-    impl ::core::cmp::Eq for ConsumerRegistration {
-        #[inline]
-        #[doc(hidden)]
-        #[coverage(off)]
-        fn assert_receiver_is_total_eq(&self) -> () {
-            let _: ::core::cmp::AssertParamIsEq<Uuid>;
-        }
-    }
-    #[automatically_derived]
-    impl ::core::cmp::PartialOrd for ConsumerRegistration {
-        #[inline]
-        fn partial_cmp(
-            &self,
-            other: &ConsumerRegistration,
-        ) -> ::core::option::Option<::core::cmp::Ordering> {
-            ::core::cmp::PartialOrd::partial_cmp(&self.id, &other.id)
-        }
-    }
-    #[automatically_derived]
-    impl ::core::cmp::Ord for ConsumerRegistration {
-        #[inline]
-        fn cmp(&self, other: &ConsumerRegistration) -> ::core::cmp::Ordering {
-            ::core::cmp::Ord::cmp(&self.id, &other.id)
-        }
-    }
-    #[automatically_derived]
-    impl ::core::hash::Hash for ConsumerRegistration {
-        #[inline]
-        fn hash<__H: ::core::hash::Hasher>(&self, state: &mut __H) -> () {
-            ::core::hash::Hash::hash(&self.id, state)
-        }
-    }
-    impl ConsumerRegistration {
-        pub fn new() -> ConsumerRegistration {
-            ConsumerRegistration {
-                id: Uuid::new_v4(),
-            }
-        }
-    }
-}
 pub mod location {
     pub trait Location {
         fn location(&self) -> &str;
@@ -382,11 +90,10 @@ pub mod sunlight_service {
     }
 }
 pub mod consumer1 {
-    use crate::service_registry::ServiceReference;
     use crate::tidal_service::TidalService;
     use std::fmt::Display;
-    use dynamic_services_derive::dynamic_services;
-    use dynamic_services_derive::DynamicServices;
+    use dynamic_services::ServiceReference;
+    use dynamic_services_derive::{DynamicServices, dynamic_services};
     pub struct Consumer1<'a> {
         blahh: u32,
         _tidal: Option<&'a TidalService>,
@@ -430,9 +137,18 @@ pub mod consumer1 {
         }
     }
     impl Consumer1<'_> {
+        #[allow(non_snake_case)]
+        pub fn get_TidalService_ref(&self) -> &Option<ServiceReference<TidalService>> {
+            &self.tidal_ref
+        }
+        #[allow(non_snake_case)]
+        pub fn get_TidalService_fieldname() -> &'static str {
+            "tidal_ref"
+        }
+        #[allow(non_snake_case)]
         pub fn set_TidalService_ref(
             &mut self,
-            sreg: &crate::service_registry::ServiceRegistration,
+            sreg: &::dynamic_services::ServiceRegistration,
             props: &std::collections::BTreeMap<String, String>,
         ) {
             {
@@ -446,6 +162,22 @@ pub mod consumer1 {
                 );
             };
             self.tidal_ref = Some(ServiceReference::from(sreg, props.clone()));
+        }
+        pub fn update_TidalService(
+            &mut self,
+            sreg: &::dynamic_services::ServiceRegistration,
+            props: &std::collections::BTreeMap<String, String>,
+        ) {
+            {
+                ::std::io::_print(
+                    format_args!(
+                        "********* updating {0} with {1:?}\n",
+                        "tidal_ref",
+                        props,
+                    ),
+                );
+            };
+            self.set_TidalService_ref(&sreg, &props);
         }
     }
     impl Consumer1<'_> {
@@ -472,7 +204,7 @@ pub mod consumer1 {
 }
 pub mod consumer2 {
     use crate::tidal_service::TidalService;
-    use crate::service_registry::ServiceReference;
+    use dynamic_services::ServiceReference;
     use dynamic_services_derive::DynamicServices;
     use dynamic_services_derive::{activator, deactivator, dynamic_services};
     pub struct Consumer2 {
@@ -517,14 +249,20 @@ pub mod consumer2 {
                 ::std::io::_print(format_args!("Consumer 2 Deactivated...\n"));
             };
         }
-        pub fn new() -> Self {
-            Consumer2 { tidal: None }
-        }
     }
     impl Consumer2 {
+        #[allow(non_snake_case)]
+        pub fn get_TidalService_ref(&self) -> &Option<ServiceReference<TidalService>> {
+            &self.tidal
+        }
+        #[allow(non_snake_case)]
+        pub fn get_TidalService_fieldname() -> &'static str {
+            "tidal"
+        }
+        #[allow(non_snake_case)]
         pub fn set_TidalService_ref(
             &mut self,
-            sreg: &crate::service_registry::ServiceRegistration,
+            sreg: &::dynamic_services::ServiceRegistration,
             props: &std::collections::BTreeMap<String, String>,
         ) {
             {
@@ -538,6 +276,18 @@ pub mod consumer2 {
                 );
             };
             self.tidal = Some(ServiceReference::from(sreg, props.clone()));
+        }
+        pub fn update_TidalService(
+            &mut self,
+            sreg: &::dynamic_services::ServiceRegistration,
+            props: &std::collections::BTreeMap<String, String>,
+        ) {
+            {
+                ::std::io::_print(
+                    format_args!("********* updating {0} with {1:?}\n", "tidal", props),
+                );
+            };
+            self.set_TidalService_ref(&sreg, &props);
         }
     }
     impl Consumer2 {
@@ -554,7 +304,7 @@ pub mod consumer2 {
 pub mod consumer3 {
     use crate::sunlight_service::SunlightService;
     use crate::tidal_service::TidalService;
-    use crate::service_registry::ServiceReference;
+    use dynamic_services::ServiceReference;
     use dynamic_services_derive::DynamicServices;
     use dynamic_services_derive::{activator, dynamic_services, update};
     pub struct Consumer3<'a, 'b> {
@@ -564,24 +314,6 @@ pub mod consumer3 {
         tidal_ref_obj: Option<ServiceReference<TidalService>>,
         #[inject]
         sunlight: Option<ServiceReference<SunlightService>>,
-    }
-    #[automatically_derived]
-    impl<'a, 'b> ::core::fmt::Debug for Consumer3<'a, 'b> {
-        #[inline]
-        fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-            ::core::fmt::Formatter::debug_struct_field4_finish(
-                f,
-                "Consumer3",
-                "_foo",
-                &self._foo,
-                "_bar",
-                &self._bar,
-                "tidal_ref_obj",
-                &self.tidal_ref_obj,
-                "sunlight",
-                &&self.sunlight,
-            )
-        }
     }
     #[automatically_derived]
     impl<'a, 'b> ::core::default::Default for Consumer3<'a, 'b> {
@@ -604,10 +336,23 @@ pub mod consumer3 {
                 sunlight: None,
             }
         }
-        pub fn activate(&self, _tidal: &TidalService) {
+        pub fn activate(&self, sls: &SunlightService, ts: &TidalService) {
             {
                 ::std::io::_print(
-                    format_args!("Consumer 3 Activated: {0:?}\n", self.tidal_ref_obj),
+                    format_args!(
+                        "Consumer 3 Activated:\n{0:?}\n{1:?}\n",
+                        self.tidal_ref_obj,
+                        self.sunlight,
+                    ),
+                );
+            };
+            {
+                ::std::io::_print(
+                    format_args!(
+                        "                    :\n{0:?}\n{1:?}\n",
+                        sls.next_sundown(),
+                        ts.next_event(),
+                    ),
                 );
             };
             if let Some(sr) = &self.tidal_ref_obj {
@@ -618,16 +363,43 @@ pub mod consumer3 {
                 };
             }
         }
-        pub fn update(&self, props: std::collections::BTreeMap<String, String>) {
+        pub fn update(
+            &self,
+            field: &str,
+            props: std::collections::BTreeMap<String, String>,
+        ) {
             {
-                ::std::io::_print(format_args!("Consumer 3 Updated: {0:?}\n", props));
+                ::std::io::_print(
+                    format_args!("My Consumer 3 Updated. {0:?} - {1:?}\n", field, props),
+                );
             };
+            if field == "tidal_ref_obj" {
+                if let Some(sr) = &self.tidal_ref_obj {
+                    {
+                        ::std::io::_print(
+                            format_args!(
+                                " field properties: {0:?}\n",
+                                sr.get_properties(),
+                            ),
+                        );
+                    };
+                }
+            }
         }
     }
     impl Consumer3<'_, '_> {
+        #[allow(non_snake_case)]
+        pub fn get_TidalService_ref(&self) -> &Option<ServiceReference<TidalService>> {
+            &self.tidal_ref_obj
+        }
+        #[allow(non_snake_case)]
+        pub fn get_TidalService_fieldname() -> &'static str {
+            "tidal_ref_obj"
+        }
+        #[allow(non_snake_case)]
         pub fn set_TidalService_ref(
             &mut self,
-            sreg: &crate::service_registry::ServiceRegistration,
+            sreg: &::dynamic_services::ServiceRegistration,
             props: &std::collections::BTreeMap<String, String>,
         ) {
             {
@@ -642,11 +414,39 @@ pub mod consumer3 {
             };
             self.tidal_ref_obj = Some(ServiceReference::from(sreg, props.clone()));
         }
+        pub fn update_TidalService(
+            &mut self,
+            sreg: &::dynamic_services::ServiceRegistration,
+            props: &std::collections::BTreeMap<String, String>,
+        ) {
+            {
+                ::std::io::_print(
+                    format_args!(
+                        "********* updating {0} with {1:?}\n",
+                        "tidal_ref_obj",
+                        props,
+                    ),
+                );
+            };
+            self.set_TidalService_ref(&sreg, &props);
+            self.update("tidal_ref_obj", props.clone());
+        }
     }
     impl Consumer3<'_, '_> {
+        #[allow(non_snake_case)]
+        pub fn get_SunlightService_ref(
+            &self,
+        ) -> &Option<ServiceReference<SunlightService>> {
+            &self.sunlight
+        }
+        #[allow(non_snake_case)]
+        pub fn get_SunlightService_fieldname() -> &'static str {
+            "sunlight"
+        }
+        #[allow(non_snake_case)]
         pub fn set_SunlightService_ref(
             &mut self,
-            sreg: &crate::service_registry::ServiceRegistration,
+            sreg: &::dynamic_services::ServiceRegistration,
             props: &std::collections::BTreeMap<String, String>,
         ) {
             {
@@ -660,6 +460,23 @@ pub mod consumer3 {
                 );
             };
             self.sunlight = Some(ServiceReference::from(sreg, props.clone()));
+        }
+        pub fn update_SunlightService(
+            &mut self,
+            sreg: &::dynamic_services::ServiceRegistration,
+            props: &std::collections::BTreeMap<String, String>,
+        ) {
+            {
+                ::std::io::_print(
+                    format_args!(
+                        "********* updating {0} with {1:?}\n",
+                        "sunlight",
+                        props,
+                    ),
+                );
+            };
+            self.set_SunlightService_ref(&sreg, &props);
+            self.update("sunlight", props.clone());
         }
     }
     impl Consumer3<'_, '_> {
