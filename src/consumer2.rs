@@ -6,7 +6,7 @@ use dynamic_services_derive::{activator, deactivator, dynamic_services};
 #[derive(DynamicServices, Debug, Default)]
 pub struct Consumer2 {
     #[inject]
-    tidal: Option<ServiceReference<TidalService>>,
+    tidal: ServiceReference<TidalService>,
 }
 
 #[dynamic_services(path=roesti::consumer2)]
